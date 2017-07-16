@@ -1,0 +1,16 @@
+{
+  "name": "terraineditor",
+  "version": "1.0.0",
+  "description": "",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "electron": "^1.6.11",
+    "three": "^0.86.0"
+  }
+}
