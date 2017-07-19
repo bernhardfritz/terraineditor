@@ -1,22 +1,38 @@
 let THREE = require('three');
+let OrbitControls = require('three-orbit-controls')(THREE);
+let { IsometricPlaneGeometry } = require('./IsometricPlaneGeometry.js')(THREE);
 
-let camera, scene, renderer;
-let geometry, material, mesh;
+let camera, controls, scene, renderer;
+let group, geometry, loader, material, mesh;
 
 const init = () => {
   camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 1, 10000);
   camera.position.z = 1000;
 
+  controls = new OrbitControls(camera);
+
   scene = new THREE.Scene();
 
-  geometry = new THREE.BoxGeometry(200, 200, 200);
-  material = new THREE.MeshBasicMaterial({
-      color: 0xff0000,
-      wireframe: true
-  });
+  group = new THREE.Group();
+  scene.add(group);
 
-  mesh = new THREE.Mesh(geometry, material);
-  scene.add(mesh);
+  loader = new THREE.TextureLoader();
+  loader.load(
+    './test.jpg',
+    texture => {
+      // texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
+      // texture.repeat.set( 4, 4 );
+      geometry = new IsometricPlaneGeometry(512, 512, 10, 10);
+      mesh = THREE.SceneUtils.createMultiMaterialObject(geometry, [
+        new THREE.MeshBasicMaterial({ map: texture }),
+        new THREE.MeshBasicMaterial({
+          color: 0x000000,
+          wireframe: true
+        })
+      ]);
+      group.add(mesh);
+    }
+  );
 
   renderer = new THREE.WebGLRenderer();
   renderer.setSize(window.innerWidth, window.innerHeight);
@@ -29,8 +45,8 @@ const init = () => {
 const animate = () => {
   requestAnimationFrame(animate);
 
-  mesh.rotation.x += 0.01;
-  mesh.rotation.y += 0.02;
+  // mesh.rotation.x += 0.01;
+  // mesh.rotation.y += 0.02;
 
   renderer.render(scene, camera);
 };
