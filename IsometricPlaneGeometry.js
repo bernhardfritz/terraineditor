@@ -42,31 +42,22 @@ module.exports = function(THREE) {
       heightSegments: heightSegments
     };
 
-    var width_half = width / 2;
-    var height_half = height / 2;
+    let width_half = width / 2;
+    let height_half = height / 2;
 
     // buffers
 
-    var indices = [];
-    var vertices = [];
-    var normals = [];
-    var uvs = [];
+    let indices = [];
+    let vertices = [];
+    let normals = [];
+    let uvs = [];
 
     // generate vertices, normals and uvs
 
-    let dict = {};
+    let prevDict = {};
+    let currDict = {};
 
     let index = 0;
-
-    const store = e => {
-      if (!(e.vertex in dict)) {
-        dict[e.vertex] = index++;
-        vertices.push(...e.vertex, 0);
-        uvs.push(...e.uv);
-        normals.push(0, 0, 1);
-      }
-      indices.push(dict[e.vertex]);
-    };
 
     let x, y, x1, x2, x3, x4, t, m, b;
 
@@ -75,61 +66,84 @@ module.exports = function(THREE) {
       x2 = clamp((x + 0.0) / widthSegments, 0, 1);
       x3 = clamp((x + 0.5) / widthSegments, 0, 1);
       x4 = clamp((x + 1.0) / widthSegments, 0, 1);
+
       for (y = 0; y < heightSegments; y += 2) {
         t = (y + 0) / heightSegments;
         m = (y + 1) / heightSegments;
         b = (y + 2) / heightSegments;
 
-        [{
-            vertex: [x1 * width - width_half, t * height - height_half],
-            uv: [x1, t]
-          },
-          {
+        let data = [];
+
+        data.push({
+          vertex: [x1 * width - width_half, t * height - height_half],
+          uv: [x1, t]
+        });
+        data.push({
+          vertex: [x3 * width - width_half, t * height - height_half],
+          uv: [x3, t]
+        });
+        data.push({
+          vertex: [x2 * width - width_half, m * height - height_half],
+          uv: [x2, m]
+        });
+        if (x < widthSegments) {
+          data.push({
+            vertex: [x2 * width - width_half, m * height - height_half],
+            uv: [x2, m]
+          });
+          data.push({
             vertex: [x3 * width - width_half, t * height - height_half],
             uv: [x3, t]
-          },
-          {
-            vertex: [x2 * width - width_half, m * height - height_half],
-            uv: [x2, m]
-          },
-          {
-            vertex: [x2 * width - width_half, m * height - height_half],
-            uv: [x2, m]
-          },
-          {
-            vertex: [x3 * width - width_half, t * height - height_half],
-            uv: [x3, t]
-          },
-          {
+          });
+          data.push({
             vertex: [x4 * width - width_half, m * height - height_half],
             uv: [x4, m]
-          },
-          {
-            vertex: [x1 * width - width_half, b * height - height_half],
-            uv: [x1, b]
-          },
-          {
+          });
+        }
+        data.push({
+          vertex: [x1 * width - width_half, b * height - height_half],
+          uv: [x1, b]
+        });
+        data.push({
+          vertex: [x2 * width - width_half, m * height - height_half],
+          uv: [x2, m]
+        });
+        data.push({
+          vertex: [x3 * width - width_half, b * height - height_half],
+          uv: [x3, b]
+        });
+        if (x < widthSegments) {
+          data.push({
             vertex: [x2 * width - width_half, m * height - height_half],
             uv: [x2, m]
-          },
-          {
-            vertex: [x3 * width - width_half, b * height - height_half],
-            uv: [x3, b]
-          },
-          {
-            vertex: [x2 * width - width_half, m * height - height_half],
-            uv: [x2, m]
-          },
-          {
+          });
+          data.push({
             vertex: [x4 * width - width_half, m * height - height_half],
             uv: [x4, m]
-          },
-          {
+          });
+          data.push({
             vertex: [x3 * width - width_half, b * height - height_half],
             uv: [x3, b]
+          });
+        }
+
+        for (let i = 0; i < data.length; i++) {
+          if (!(data[i].vertex in currDict)) {
+            if (!(data[i].vertex in prevDict)) {
+              currDict[data[i].vertex] = index++;
+              vertices.push(...data[i].vertex, 0);
+              uvs.push(...data[i].uv);
+              normals.push(0, 0, 1);
+            } else {
+              currDict[data[i].vertex] = prevDict[data[i].vertex];
+            }
           }
-        ].forEach(store);
+          indices.push(currDict[data[i].vertex]);
+        }
       }
+
+      prevDict = currDict;
+      currDict = {};
     }
 
     this.setIndex(indices);
