@@ -4,6 +4,7 @@ let { EffectComposer, RenderPass, BlurPass, KernelSize, SavePass } = require('po
 let { IsometricPlaneGeometry } = require('./IsometricPlaneGeometry.js')(THREE);
 let { remote } = require('electron');
 let fs = remote.require('fs');
+let { readFile, load } = require('./utils.js');
 
 let comboRenderTarget;
 let comboCamera, comboScene;
@@ -34,48 +35,76 @@ const init = () => {
 
   scene = new THREE.Scene();
 
-  loader.load(
-    './heightmap.png',
-    heightmap => {
-      fs.readFile('./comboVertexShader.glsl', 'utf8', (err, comboVertexShader) => {
-        fs.readFile('./comboFragmentShader.glsl', 'utf8', (err, comboFragmentShader) => {
-          comboGeometry = new THREE.PlaneGeometry(window.innerWidth, window.innerHeight);
-          var comboMaterial = new THREE.RawShaderMaterial({
-            uniforms: {
-              displacementMap: { type: "t", value: heightmap },
-              displacementScale: { type: "f", value: 128.0 }
-            },
-            vertexShader: comboVertexShader.toString(),
-            fragmentShader: comboFragmentShader.toString()
-          });
-          comboMesh = new THREE.Mesh(comboGeometry, comboMaterial);
-          comboScene.add(comboMesh);
-        });
-      });
-    }
-  );
+  let promises = [];
+  promises.push(load(loader, './heightmap.png'));
+  promises.push(readFile(fs, './comboVertexShader.glsl', 'utf8'));
+  promises.push(readFile(fs, './comboFragmentShader.glsl', 'utf8'));
 
-  loader.load(
-    './test.jpg',
-    texture => {
-      fs.readFile('./vertexShader.glsl', 'utf8', (err, vertexShader) => {
-        fs.readFile('./fragmentShader.glsl', 'utf8', (err, fragmentShader) => {
-          geometry = new IsometricPlaneGeometry(512, 512, 256, 256);
-          var material = new THREE.RawShaderMaterial({
-            uniforms: {
-              comboMap: { type: "t", value: comboRenderTarget.texture },
-              displacementScale: { type: "f", value: 128.0 },
-              map: { type: "t", value: texture}
-            },
-            vertexShader: vertexShader.toString(),
-            fragmentShader: fragmentShader.toString(),
-          });
-          mesh = new THREE.Mesh(geometry, material);
-          scene.add(mesh);
-        });
-      });
-    }
-  );
+  Promise.all(promises)
+  .then(values => {
+    let heightmap = values[0];
+    let comboVertexShader = values[1];
+    let comboFragmentShader = values[2];
+
+    comboGeometry = new THREE.PlaneGeometry(window.innerWidth, window.innerHeight);
+    var comboMaterial = new THREE.RawShaderMaterial({
+      uniforms: {
+        displacementMap: { type: "t", value: heightmap },
+        displacementScale: { type: "f", value: 128.0 }
+      },
+      vertexShader: comboVertexShader.toString(),
+      fragmentShader: comboFragmentShader.toString()
+    });
+    comboMesh = new THREE.Mesh(comboGeometry, comboMaterial);
+    comboScene.add(comboMesh);
+  });
+
+  promises = [];
+  promises.push(load(loader, './rgba_new.png'));
+  promises.push(load(loader, './ulrick-wery/ulrick-wery-desert-01-soil.jpg'));
+  promises.push(load(loader, './ulrick-wery/ulrick-wery-desert-04-sand.jpg'));
+  promises.push(load(loader, './ulrick-wery/ulrick-wery-tileableset-grassflower.jpg'));
+  promises.push(load(loader, './ulrick-wery/ulrick-wery-tileableset2-soil.jpg'));
+  promises.push(load(loader, './ulrick-wery/ulrick-wery-tileableset-grassstone.jpg'));
+  promises.push(readFile(fs, './vertexShader.glsl', 'utf8'));
+  promises.push(readFile(fs, './fragmentShader.glsl', 'utf8'));
+
+  Promise.all(promises)
+  .then(values => {
+    let mixMap  = values[0];
+    let layer0 = values[1];
+    let layer1 = values[2];
+    let layer2 = values[3];
+    let layer3 = values[4];
+    let layer4 = values[5];
+    let vertexShader = values[6];
+    let fragmentShader = values[7];
+
+    layer0.wrapS = layer0.wrapT = THREE.RepeatWrapping;
+    layer1.wrapS = layer1.wrapT = THREE.RepeatWrapping;
+    layer2.wrapS = layer2.wrapT = THREE.RepeatWrapping;
+    layer3.wrapS = layer3.wrapT = THREE.RepeatWrapping;
+    layer4.wrapS = layer4.wrapT = THREE.RepeatWrapping;
+
+    geometry = new IsometricPlaneGeometry(512, 512, 256, 256);
+    var material = new THREE.RawShaderMaterial({
+      uniforms: {
+        comboMap: { type: "t", value: comboRenderTarget.texture },
+        displacementScale: { type: "f", value: 128.0 },
+        mixMap: { type: "t", value: mixMap },
+        layer0: { type: "t", value: layer0 },
+        layer1: { type: "t", value: layer1 },
+        layer2: { type: "t", value: layer2 },
+        layer3: { type: "t", value: layer3 },
+        layer4: { type: "t", value: layer4 },
+        texScale: { type: "f", value: 32.0 }
+      },
+      vertexShader: vertexShader.toString(),
+      fragmentShader: fragmentShader.toString(),
+    });
+    mesh = new THREE.Mesh(geometry, material);
+    scene.add(mesh);
+  });
 
   // TODO: make use of lights provided by three.js in custom shaders
   // var ambientLight = new THREE.AmbientLight(0x222222);
