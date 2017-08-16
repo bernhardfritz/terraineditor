@@ -9,4 +9,4 @@ Some textures used in the examples below are not included in this repository to 
 
 ![screenshot](http://i.imgur.com/7c6ixW8.jpg)
 ![screenshot](http://i.imgur.com/OmlSTmz.jpg)
-![gif](https://media.giphy.com/media/l1J3OiAggjtwCaOuA/giphy.gif)
+![gif](https://media.giphy.com/media/3o6vXU6rCETKsA0d8s/giphy-downsized-large.gif)
