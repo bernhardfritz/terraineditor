@@ -5,27 +5,21 @@ let { UnindexedIsometricPlaneBufferGeometry } = require('./UnindexedIsometricPla
 let { remote } = require('electron');
 let fs = remote.require('fs');
 let { readFile, load, image } = require('./utils.js');
+let { Sky } = require('./sky.js')(THREE);
+let dat = require('./dat.gui.min.js');
 
-let comboRenderTarget;
-let comboCamera, comboScene;
-let comboGeometry, comboMaterial, comboMesh;
+let comboRenderTarget, comboCamera, comboScene, comboMesh;
 
 let camera, controls, scene, renderer;
 let geometry, loader, material, mesh;
-
-let skyGeometry, skyMesh;
 
 let composer, hblur, vblur;
 
 let mousePosition;
 
-let sunPosition;
-
 let heightmapCanvas, heightmapContext, heightmapTexture;
 
 let isMouseDown = false;
-
-let dir;
 
 let moveForward = false;
 let moveBackward = false;
@@ -34,10 +28,18 @@ let moveRight = false;
 let moveUp = false;
 let moveDown = false;
 let prevTime = performance.now();
-var velocity = new THREE.Vector3();
+let velocity = new THREE.Vector3();
+
+let Options = function() {
+  this.radius = 10;
+};
+
+let gui;
 
 const init = () => {
   loader = new THREE.TextureLoader();
+
+  scene = new THREE.Scene();
 
   var renderTargetParams = {
     minFilter: THREE.LinearFilter,
@@ -49,28 +51,30 @@ const init = () => {
   comboCamera.position.z = 1000;
   comboScene = new THREE.Scene();
 
-  camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 1, 2000000);
+  camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 1, 10000);
 
   controls = new PointerLockControls(camera);
   controls.getObject().translateZ(1000);
-
-  scene = new THREE.Scene();
-
   scene.add(controls.getObject());
 
   mousePosition = new THREE.Vector3();
 
-  dir = new THREE.Vector3();
+  sky = new Sky();
+  sky.init(scene, controls.getObject());
+  sky.azimuth = 0.15;
 
-  let inclination = 0.0;
-  let azimuth = 0.15;
-  var theta = Math.PI * ( inclination - 0.5 );
-  var phi = 2 * Math.PI * ( azimuth - 0.5 );
-  sunPosition = new THREE.Vector3();
-  let distance = 400000.0;
-  sunPosition.x = distance * Math.cos( phi );
-  sunPosition.y = distance * Math.sin( phi ) * Math.sin( theta );
-  sunPosition.z = distance * Math.sin( phi ) * Math.cos( theta );
+  options = new Options();
+
+  gui = new dat.GUI();
+
+  let skyFolder = gui.addFolder('Sky');
+  skyFolder.add(sky, 'turbidity', 1.0, 20.0).step(0.1);
+  skyFolder.add(sky, 'rayleigh', 0.0, 4).step(0.001);
+  skyFolder.add(sky, 'mieCoefficient', 0.0, 0.1).step(0.001);
+  skyFolder.add(sky, 'mieDirectionalG', 0.0, 1).step(0.001);
+  skyFolder.add(sky, 'luminance', 0.0, 2);
+  skyFolder.add(sky, 'inclination', 0, 1).step(0.0001);
+  skyFolder.add(sky, 'azimuth', 0, 1).step(0.0001);
 
   heightmapCanvas = document.createElement('canvas');
   heightmapContext = heightmapCanvas.getContext('2d');
@@ -91,10 +95,10 @@ const init = () => {
     heightmapTexture = new THREE.Texture(heightmapCanvas);
     heightmapTexture.needsUpdate = true;
 
-    document.body.appendChild(heightmapCanvas);
+    // document.body.appendChild(heightmapCanvas);
 
-    comboGeometry = new THREE.PlaneGeometry(window.innerWidth, window.innerHeight);
-    var comboMaterial = new THREE.RawShaderMaterial({
+    let comboGeometry = new THREE.PlaneGeometry(window.innerWidth, window.innerHeight);
+    let comboMaterial = new THREE.RawShaderMaterial({
       uniforms: {
         displacementMap: { type: "t", value: heightmapTexture },
         displacementScale: { type: "f", value: 128.0 }
@@ -134,7 +138,7 @@ const init = () => {
     layer4.wrapS = layer4.wrapT = THREE.RepeatWrapping;
 
     geometry = new UnindexedIsometricPlaneBufferGeometry(512, 512, 256, 256);
-    var material = new THREE.RawShaderMaterial({
+    material = new THREE.RawShaderMaterial({
       uniforms: {
         comboMap: { type: "t", value: comboRenderTarget.texture },
         displacementScale: { type: "f", value: 128.0 },
@@ -146,51 +150,21 @@ const init = () => {
         layer4: { type: "t", value: layer4 },
         texScale: { type: "f", value: 32.0 },
         mousePosition: { type: "vec3", value: mousePosition },
-        sunPosition: { type: "vec3", value: sunPosition }
+        sunPosition: { type: "vec3", value: sky.sunPosition },
+        radius: { type: "f", value: 100.0 }
       },
       vertexShader: vertexShader.toString(),
       fragmentShader: fragmentShader.toString(),
     });
+
+    let radiusController = gui.add(options, 'radius', 1, 100);
+    radiusController.onChange(value => {
+      material.uniforms.radius.value = value * 10;
+    });
+
     geometry.rotateX( - Math.PI / 2 );
     mesh = new THREE.Mesh(geometry, material);
     scene.add(mesh);
-  });
-
-  // TODO: make use of lights provided by three.js in custom shaders
-  // var ambientLight = new THREE.AmbientLight(0x222222);
-  // scene.add(ambientLight);
-  //
-  // var directionalLight = new THREE.DirectionalLight(0xffffff, 1.0);
-  // scene.add(directionalLight);
-  //
-  // var pointLight = new THREE.PointLight(0xffffff);
-  // pointLight.position.set(-150, -150, 100);
-  // scene.add(pointLight);
-
-  promises = [];
-  promises.push(readFile(fs, './skyVertexShader.glsl', 'utf8'));
-  promises.push(readFile(fs, './skyFragmentShader.glsl', 'utf8'));
-
-  Promise.all(promises)
-  .then(values => {
-    let vertexShader = values[0];
-    let fragmentShader = values[1];
-    skyGeometry = new THREE.SphereBufferGeometry(450000, 32, 15);
-    let skyMaterial = new THREE.ShaderMaterial({
-      vertexShader: vertexShader,
-      fragmentShader: fragmentShader,
-      uniforms: {
-        luminance: { type: "f", value: 1 },
-    		turbidity: { type: "f", value: 10 },
-    		rayleigh: { type: "f", value: 2 },
-    		mieCoefficient: { type: "f", value: 0.005 },
-    		mieDirectionalG: { type: "f", value: 0.8 },
-    		sunPosition: { type: "vec3", value: sunPosition }
-      },
-      side: THREE.BackSide
-    });
-    skyMesh = new THREE.Mesh(skyGeometry, skyMaterial);
-    scene.add(skyMesh);
   });
 
   renderer = new THREE.WebGLRenderer({ alpha: true });
@@ -199,12 +173,6 @@ const init = () => {
 
   composer = new EffectComposer(renderer);
   composer.addPass(new RenderPass( comboScene, comboCamera ) );
-  // TODO: it might be necessary to blur the generated normal map
-  // var blurPass = new BlurPass();
-  // blurPass.kernelSize = KernelSize.VERY_SMALL;
-  // blurPass.resolutionScale = 1.0;
-  // blurPass.renderToScreen = true;
-  // composer.addPass(blurPass);
   composer.addPass(new SavePass(comboRenderTarget));
 
   document.body.appendChild(renderer.domElement);
@@ -215,13 +183,13 @@ const init = () => {
   document.addEventListener('mouseup', onMouseUp, false);
   document.addEventListener('mousemove', onMouseMove, false);
 
-  togglePointerLock();
-
-  document.addEventListener( 'pointerlockchange', onPointerLockChange, false );
-  document.addEventListener( 'pointerlockerror', onPointerLockError, false );
+  document.addEventListener( 'pointerlockchange', onPointerLockChange, false);
+  document.addEventListener( 'pointerlockerror', onPointerLockError, false);
 
   document.addEventListener( 'keydown', onKeyDown, false );
 	document.addEventListener( 'keyup', onKeyUp, false );
+
+  togglePointerLock();
 };
 
 const animate = () => {
@@ -240,6 +208,20 @@ const animate = () => {
     if (moveDown) controls.getObject().translateY(-velocity);
 
     prevTime = time;
+  }
+
+  if (isMouseDown) {
+    heightmapContext.beginPath();
+    let centerX = ((mousePosition.x / 256 + 1) / 2) * 2048;
+    let centerY = ((mousePosition.z / 256 + 1) / 2) * 2048;
+    heightmapContext.arc(centerX, centerY, material.uniforms.radius.value, 0, 2 * Math.PI, false);
+    let radialGradient = heightmapContext.createRadialGradient(centerX, centerY, 0, centerX, centerY, material.uniforms.radius.value);
+    radialGradient.addColorStop(0, `rgba(1, 1, 1, 1)`);
+    radialGradient.addColorStop(1, `rgba(0, 0, 0, 1)`);
+    heightmapContext.globalCompositeOperation = "lighter";
+    heightmapContext.fillStyle = radialGradient;
+    heightmapContext.fill();
+    heightmapTexture.needsUpdate = true;
   }
 
   composer.render(); // TODO: render to texture only when terrain gets modified instead of every frame
@@ -269,8 +251,6 @@ const onMouseMove = (event) => {
     - ( event.clientY / window.innerHeight ) * 2 + 1,
     0.5 );
 
-  controls.getDirection(dir);
-
   vector.unproject( camera );
 
   vector.y -= 10;
@@ -284,22 +264,6 @@ const onMouseMove = (event) => {
   let distance = ray.distanceToPlane(new THREE.Plane(new THREE.Vector3(0, 1, 0)));
 
   mousePosition.copy(pos.clone().add(customDir.multiplyScalar(distance)));
-
-  if (isMouseDown) {
-    heightmapContext.beginPath();
-    let centerX = ((mousePosition.x / 256 + 1) / 2) * 2048;
-    let centerY = ((mousePosition.z / 256 + 1) / 2) * 2048;
-    let radius = 100;
-    heightmapContext.arc(centerX, centerY, radius, 0, 2 * Math.PI, false);
-    let gradient = heightmapContext.createRadialGradient(centerX, centerY, 0, centerX, centerY, radius);
-    let strength = 1;
-    gradient.addColorStop(0, `rgba(${strength}, ${strength}, ${strength}, 1.0)`);
-    gradient.addColorStop(1, `rgba(0, 0, 0, 1.0)`);
-    heightmapContext.globalCompositeOperation = "lighter";
-    heightmapContext.fillStyle = gradient;
-    heightmapContext.fill();
-    heightmapTexture.needsUpdate = true;
-  }
 };
 
 const onPointerLockChange = (event) => {

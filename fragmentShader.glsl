@@ -14,11 +14,14 @@ uniform sampler2D layer4;
 uniform float texScale;
 uniform vec3 mousePosition;
 uniform vec3 sunPosition;
+uniform float radius;
 
 varying vec3 vPosition;
 varying vec2 vTexCoord;
 varying vec2 vBaryCoord;
 varying vec4 vViewSpacePosition;
+
+const float radiusFactor = 0.13;
 
 float edgeFactor(vec2 vBC, float width) {
   vec3 bary = vec3(vBC.x, vBC.y, 1.0 - vBC.x - vBC.y) * 3.0;
@@ -48,8 +51,8 @@ void main() {
   float ext = exp(-dist * be);
   float insc = exp(-dist * bi);
 
-  if (length(vPosition - mpos) < 15.0) {
-    c = mix(mix(vec3(0.0), c, edgeFactor(vBaryCoord, 0.5)), c, pow(length(vPosition - mpos) / 15.0, 8.0));
+  if (length(vPosition - mpos) < radius * radiusFactor) {
+    c = mix(mix(vec3(0.0), c, edgeFactor(vBaryCoord, 0.5)), c, pow(length(vPosition - mpos) / (radius * radiusFactor), 8.0));
   }
 
   if (false) {

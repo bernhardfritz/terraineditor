@@ -13,5 +13,8 @@
     "electron": "^1.6.11",
     "postprocessing": "^2.2.0",
     "three": "^0.86.0"
+  },
+  "devDependencies": {
+    "electron-reload": "^1.2.1"
   }
 }
