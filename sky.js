@@ -29,7 +29,7 @@ module.exports = function(THREE) {
       .then(values => {
         let vertexShader = values[0];
         let fragmentShader = values[1];
-        let geometry = new THREE.SphereBufferGeometry(9999, 32, 15);
+        let geometry = new THREE.SphereBufferGeometry(9990, 32, 15);
         let material = new THREE.ShaderMaterial({
           vertexShader: vertexShader,
           fragmentShader: fragmentShader,

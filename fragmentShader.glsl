@@ -15,6 +15,7 @@ uniform float texScale;
 uniform vec3 mousePosition;
 uniform vec3 sunPosition;
 uniform float radius;
+uniform int controlsEnabled;
 
 varying vec3 vPosition;
 varying vec2 vTexCoord;
@@ -51,7 +52,7 @@ void main() {
   float ext = exp(-dist * be);
   float insc = exp(-dist * bi);
 
-  if (length(vPosition - mpos) < radius * radiusFactor) {
+  if (controlsEnabled == 0 && length(vPosition - mpos) < radius * radiusFactor) {
     c = mix(mix(vec3(0.0), c, edgeFactor(vBaryCoord, 0.5)), c, pow(length(vPosition - mpos) / (radius * radiusFactor), 8.0));
   }
 

@@ -7,6 +7,7 @@ let fs = remote.require('fs');
 let { readFile, load, image } = require('./utils.js');
 let { Sky } = require('./sky.js')(THREE);
 let dat = require('./dat.gui.min.js');
+let Stats = require('./stats.min.js');
 
 let comboRenderTarget, comboCamera, comboScene, comboMesh;
 
@@ -19,7 +20,8 @@ let mousePosition;
 
 let heightmapCanvas, heightmapContext, heightmapTexture;
 
-let isMouseDown = false;
+let isLeftMouseButtonDown = false;
+let isRightMouseButtonDown = false;
 
 let moveForward = false;
 let moveBackward = false;
@@ -28,13 +30,16 @@ let moveRight = false;
 let moveUp = false;
 let moveDown = false;
 let prevTime = performance.now();
-let velocity = new THREE.Vector3();
+
+let modeLabel;
 
 let Options = function() {
   this.radius = 10;
+  this.strength = 10;
 };
 
 let gui;
+let stats;
 
 const init = () => {
   loader = new THREE.TextureLoader();
@@ -54,7 +59,8 @@ const init = () => {
   camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 1, 10000);
 
   controls = new PointerLockControls(camera);
-  controls.getObject().translateZ(1000);
+  controls.getObject().translateZ(512);
+  controls.getObject().translateY(100);
   scene.add(controls.getObject());
 
   mousePosition = new THREE.Vector3();
@@ -76,7 +82,13 @@ const init = () => {
   skyFolder.add(sky, 'inclination', 0, 1).step(0.0001);
   skyFolder.add(sky, 'azimuth', 0, 1).step(0.0001);
 
-  heightmapCanvas = document.createElement('canvas');
+  stats = new Stats();
+  stats.showPanel(0); // 0: fps, 1: ms, 2: mb, 3+: custom
+  document.body.appendChild(stats.dom);
+
+  modeLabel = document.getElementById('modeLabel');
+
+  heightmapCanvas = document.getElementById('heightmapCanvas');
   heightmapContext = heightmapCanvas.getContext('2d');
 
   let promises = [];
@@ -90,18 +102,17 @@ const init = () => {
     let comboVertexShader = values[1];
     let comboFragmentShader = values[2];
 
-    heightmapCanvas.width = heightmapCanvas.height = 2048;
+    heightmapCanvas.width = heightmap.width;
+    heightmapCanvas.height = heightmap.height;
     heightmapContext.drawImage(heightmap, 0, 0);
     heightmapTexture = new THREE.Texture(heightmapCanvas);
     heightmapTexture.needsUpdate = true;
-
-    // document.body.appendChild(heightmapCanvas);
 
     let comboGeometry = new THREE.PlaneGeometry(window.innerWidth, window.innerHeight);
     let comboMaterial = new THREE.RawShaderMaterial({
       uniforms: {
         displacementMap: { type: "t", value: heightmapTexture },
-        displacementScale: { type: "f", value: 128.0 }
+        displacementScale: { type: "f", value: 196.0 }
       },
       vertexShader: comboVertexShader.toString(),
       fragmentShader: comboFragmentShader.toString()
@@ -141,7 +152,7 @@ const init = () => {
     material = new THREE.RawShaderMaterial({
       uniforms: {
         comboMap: { type: "t", value: comboRenderTarget.texture },
-        displacementScale: { type: "f", value: 128.0 },
+        displacementScale: { type: "f", value: 196.0 },
         mixMap: { type: "t", value: mixMap },
         layer0: { type: "t", value: layer0 },
         layer1: { type: "t", value: layer1 },
@@ -151,7 +162,8 @@ const init = () => {
         texScale: { type: "f", value: 32.0 },
         mousePosition: { type: "vec3", value: mousePosition },
         sunPosition: { type: "vec3", value: sky.sunPosition },
-        radius: { type: "f", value: 100.0 }
+        radius: { type: "f", value: 100.0 },
+        controlsEnabled: { type: "i", value: controls.enabled ? 1 : 0 }
       },
       vertexShader: vertexShader.toString(),
       fragmentShader: fragmentShader.toString(),
@@ -161,6 +173,7 @@ const init = () => {
     radiusController.onChange(value => {
       material.uniforms.radius.value = value * 10;
     });
+    gui.add(options, 'strength', 1, 100);
 
     geometry.rotateX( - Math.PI / 2 );
     mesh = new THREE.Mesh(geometry, material);
@@ -195,37 +208,52 @@ const init = () => {
 const animate = () => {
   requestAnimationFrame(animate);
 
-  if (controls.enabled) {
-    let time = performance.now();
-    let delta = time - prevTime;
-    let velocity = delta / 5;
+  stats.begin();
 
+  let time = performance.now();
+  let delta = time - prevTime;
+
+  if (controls.enabled) {
+    let velocity = delta / 5;
     if (moveForward) controls.getObject().translateZ(-velocity);
     if (moveBackward) controls.getObject().translateZ(velocity);
     if (moveLeft) controls.getObject().translateX(-velocity);
     if (moveRight) controls.getObject().translateX(velocity);
     if (moveUp) controls.getObject().translateY(velocity);
     if (moveDown) controls.getObject().translateY(-velocity);
-
-    prevTime = time;
-  }
-
-  if (isMouseDown) {
+  } else if ((isLeftMouseButtonDown || isRightMouseButtonDown)) {
+    if (isRightMouseButtonDown) {
+      heightmapContext.globalCompositeOperation = 'difference';
+      heightmapContext.fillStyle = 'white';
+      heightmapContext.fillRect(0, 0, heightmapCanvas.width, heightmapCanvas.height);
+    }
     heightmapContext.beginPath();
-    let centerX = ((mousePosition.x / 256 + 1) / 2) * 2048;
-    let centerY = ((mousePosition.z / 256 + 1) / 2) * 2048;
-    heightmapContext.arc(centerX, centerY, material.uniforms.radius.value, 0, 2 * Math.PI, false);
+    let centerX = ((mousePosition.x / 256 + 1) / 2) * heightmapCanvas.width;
+    let centerY = ((mousePosition.z / 256 + 1) / 2) * heightmapCanvas.height;
+    let radiusFactor = heightmapCanvas.width / 4096; // this factor ensures that the visual representation of the editing radius coincides with the actual transformation area
+    heightmapContext.arc(centerX, centerY, material.uniforms.radius.value * radiusFactor, 0, 2 * Math.PI, false);
     let radialGradient = heightmapContext.createRadialGradient(centerX, centerY, 0, centerX, centerY, material.uniforms.radius.value);
-    radialGradient.addColorStop(0, `rgba(1, 1, 1, 1)`);
-    radialGradient.addColorStop(1, `rgba(0, 0, 0, 1)`);
-    heightmapContext.globalCompositeOperation = "lighter";
+    let c1 = Math.round((options.strength + 10) / 11);
+    let c2 = c1 - 1;
+    radialGradient.addColorStop(0, `rgba(${c1}, ${c1}, ${c1}, 1)`);
+    radialGradient.addColorStop(1, `rgba(${c2}, ${c2}, ${c2}, 1)`);
+    heightmapContext.globalCompositeOperation = 'lighter';
     heightmapContext.fillStyle = radialGradient;
     heightmapContext.fill();
+    if (isRightMouseButtonDown) {
+      heightmapContext.globalCompositeOperation = 'difference';
+      heightmapContext.fillStyle = 'white';
+      heightmapContext.fillRect(0, 0, heightmapCanvas.width, heightmapCanvas.height);
+    }
     heightmapTexture.needsUpdate = true;
   }
 
+  prevTime = time;
+
   composer.render(); // TODO: render to texture only when terrain gets modified instead of every frame
   renderer.render(scene, camera);
+
+  stats.end();
 };
 
 const onWindowResize = () => {
@@ -236,11 +264,29 @@ const onWindowResize = () => {
 };
 
 const onMouseDown = (event) => {
-  isMouseDown = true;
+  switch (event.button) {
+    case 0: // left
+      isLeftMouseButtonDown = true;
+      break;
+    case 1: // middle
+      break;
+    case 2: // right
+      isRightMouseButtonDown = true;
+      break;
+  }
 };
 
 const onMouseUp = (event) => {
-  isMouseDown = false;
+  switch (event.button) {
+    case 0: // left
+      isLeftMouseButtonDown = false;
+      break;
+    case 1: // middle
+      break;
+    case 2: // right
+      isRightMouseButtonDown = false;
+      break;
+  }
 };
 
 const onMouseMove = (event) => {
@@ -271,6 +317,9 @@ const onPointerLockChange = (event) => {
     controls.enabled = true;
   } else {
     controls.enabled = false;
+  }
+  if (material) {
+    material.uniforms.controlsEnabled.value = controls.enabled ? 1 : 0;
   }
 };
 
@@ -328,10 +377,18 @@ const onKeyUp = (event) => {
 };
 
 const togglePointerLock = () => {
-  if (document.pointerLockElement) {
+  modeLabel.classList.remove('border-left-red');
+  modeLabel.classList.remove('border-left-green');
+  modeLabel.classList.remove('border-left-blue');
+  modeLabel.classList.remove('border-left-purple');
+  if (controls.enabled) {
     document.exitPointerLock();
+    modeLabel.textContent = 'EDIT MODE';
+    modeLabel.classList.add('border-left-red');
   } else {
     document.body.requestPointerLock();
+    modeLabel.textContent = 'CAMERA MODE';
+    modeLabel.classList.add('border-left-blue');
   }
 };
 

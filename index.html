@@ -6,7 +6,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <link href="style.css" rel="stylesheet">
   </head>
-  <body>
+  <body oncontextmenu="return false;">
+    <div id="modeLabel" class="overlay text-overlay bottom-left"></div>
+    <canvas id="heightmapCanvas" class="overlay bottom-right minimap"></canvas>
     <script>
       require('./renderer.js');
     </script>
