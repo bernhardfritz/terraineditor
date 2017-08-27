@@ -2,7 +2,7 @@
 
 precision mediump float;
 
-uniform vec3 cameraPosition;
+uniform mat3 normalMatrix;
 
 uniform sampler2D comboMap;
 uniform sampler2D mixMap;
@@ -13,14 +13,15 @@ uniform sampler2D layer3;
 uniform sampler2D layer4;
 uniform float texScale;
 uniform vec3 mousePosition;
-uniform vec3 sunPosition;
 uniform float radius;
 uniform int controlsEnabled;
 
 varying vec3 vPosition;
 varying vec2 vTexCoord;
 varying vec2 vBaryCoord;
-varying vec4 vViewSpacePosition;
+varying vec3 vViewSpacePosition;
+varying vec3 vL;
+varying vec3 vV;
 
 const float radiusFactor = 0.13;
 
@@ -32,8 +33,10 @@ float edgeFactor(vec2 vBC, float width) {
 }
 
 void main() {
-  vec3 N = normalize(texture2D(comboMap, vTexCoord).xyz);
-  vec3 L = normalize(sunPosition);
+  vec3 N = normalize(normalMatrix * normalize(texture2D(comboMap, vTexCoord).rgb * 2.0 - 1.0)); // reversing the positive rgb values transformation
+  vec3 L = normalize(vL);
+  vec3 V = normalize(vV);
+  vec3 H = normalize(L + V);
   vec4 rgba = texture2D(mixMap, vTexCoord);
   vec3 color = texture2D(layer0, vTexCoord * texScale).rgb;
   color = mix(color, texture2D(layer1, vTexCoord * texScale).rgb, rgba.r);
@@ -41,7 +44,12 @@ void main() {
   color = mix(color, texture2D(layer3, vTexCoord * texScale).rgb, rgba.b);
   color = mix(color, texture2D(layer4, vTexCoord * texScale).rgb, rgba.a);
 
-  vec3 c = color * max(dot(N, L), 0.0);
+  vec3 ambient = vec3(0.05, 0.05, 0.05);
+  vec3 diffuse = color * max(dot(N, L), 0.0);
+  float shininess = 8.0;
+  vec3 lightColor = vec3(1.0, 1.0, 1.0);
+  vec3 specular = lightColor * pow(max(dot(N, H), 0.0), shininess);
+  vec3 c = ambient + diffuse + 0.025 * specular;
 
   vec3 mpos = vec3(mousePosition.x, vPosition.y, mousePosition.z);
 

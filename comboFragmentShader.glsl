@@ -4,6 +4,7 @@ precision mediump float;
 
 uniform sampler2D displacementMap;
 uniform float displacementScale;
+uniform mat3 normalMatrix;
 
 varying vec2 vTexCoord;
 
@@ -16,7 +17,9 @@ void main() {
   normal.x = -0.5 * (getDisplacement(1.0, 0.0) - getDisplacement(-1.0, 0.0));
 	normal.y = 1.0 / displacementScale;
 	normal.z = -0.5 * (getDisplacement(0.0, 1.0) - getDisplacement(0.0, -1.0));
-  normal = normalize(normal);
+	normal.z = -normal.z;
+	normal = normalize(normalMatrix * normal);
+	normal = (normal + 1.0) * 0.5; // this is necessary since rgb values need to be positive
 
   gl_FragColor = vec4(normal, getDisplacement(0.0, 0.0));
 }
