@@ -123,30 +123,45 @@ const init = () => {
 
   promises = [];
   promises.push(load(loader, './rgba_new.png'));
-  promises.push(load(loader, './ulrick-wery/ulrick-wery-desert-01-soil.jpg'));
-  promises.push(load(loader, './ulrick-wery/ulrick-wery-desert-04-sand.jpg'));
-  promises.push(load(loader, './ulrick-wery/ulrick-wery-tileableset-grassflower.jpg'));
-  promises.push(load(loader, './ulrick-wery/ulrick-wery-tileableset2-soil.jpg'));
-  promises.push(load(loader, './ulrick-wery/ulrick-wery-tileableset-grassstone.jpg'));
+  promises.push(load(loader, './free_3d_textures_pack_08_by_nobiax-d3awoah/pattern_42/diffus.png'));
+  promises.push(load(loader, './free_3d_textures_pack_08_by_nobiax-d3awoah/pattern_43/diffus.png'));
+  promises.push(load(loader, './free_3d_textures_pack_08_by_nobiax-d3awoah/pattern_44/diffus.png'));
+  promises.push(load(loader, './free_3d_textures_pack_08_by_nobiax-d3awoah/pattern_45/diffus.png'));
+  promises.push(load(loader, './free_3d_textures_pack_08_by_nobiax-d3awoah/pattern_46/diffus.png'));
+  promises.push(load(loader, './free_3d_textures_pack_08_by_nobiax-d3awoah/pattern_42/normal.png'));
+  promises.push(load(loader, './free_3d_textures_pack_08_by_nobiax-d3awoah/pattern_43/normal.png'));
+  promises.push(load(loader, './free_3d_textures_pack_08_by_nobiax-d3awoah/pattern_44/normal.png'));
+  promises.push(load(loader, './free_3d_textures_pack_08_by_nobiax-d3awoah/pattern_45/normal.png'));
+  promises.push(load(loader, './free_3d_textures_pack_08_by_nobiax-d3awoah/pattern_46/normal.png'));
   promises.push(readFile(fs, './vertexShader.glsl', 'utf8'));
   promises.push(readFile(fs, './fragmentShader.glsl', 'utf8'));
 
   Promise.all(promises)
   .then(values => {
     let mixMap  = values[0];
-    let layer0 = values[1];
-    let layer1 = values[2];
-    let layer2 = values[3];
-    let layer3 = values[4];
-    let layer4 = values[5];
-    let vertexShader = values[6];
-    let fragmentShader = values[7];
+    let diffuseLayer0 = values[1];
+    let diffuseLayer1 = values[2];
+    let diffuseLayer2 = values[3];
+    let diffuseLayer3 = values[4];
+    let diffuseLayer4 = values[5];
+    let normalLayer0 = values[6];
+    let normalLayer1 = values[7];
+    let normalLayer2 = values[8];
+    let normalLayer3 = values[9];
+    let normalLayer4 = values[10];
+    let vertexShader = values[11];
+    let fragmentShader = values[12];
 
-    layer0.wrapS = layer0.wrapT = THREE.RepeatWrapping;
-    layer1.wrapS = layer1.wrapT = THREE.RepeatWrapping;
-    layer2.wrapS = layer2.wrapT = THREE.RepeatWrapping;
-    layer3.wrapS = layer3.wrapT = THREE.RepeatWrapping;
-    layer4.wrapS = layer4.wrapT = THREE.RepeatWrapping;
+    diffuseLayer0.wrapS = diffuseLayer0.wrapT = THREE.RepeatWrapping;
+    diffuseLayer1.wrapS = diffuseLayer1.wrapT = THREE.RepeatWrapping;
+    diffuseLayer2.wrapS = diffuseLayer2.wrapT = THREE.RepeatWrapping;
+    diffuseLayer3.wrapS = diffuseLayer3.wrapT = THREE.RepeatWrapping;
+    diffuseLayer4.wrapS = diffuseLayer4.wrapT = THREE.RepeatWrapping;
+    normalLayer0.wrapS = normalLayer0.wrapT = THREE.RepeatWrapping;
+    normalLayer1.wrapS = normalLayer1.wrapT = THREE.RepeatWrapping;
+    normalLayer2.wrapS = normalLayer2.wrapT = THREE.RepeatWrapping;
+    normalLayer3.wrapS = normalLayer3.wrapT = THREE.RepeatWrapping;
+    normalLayer4.wrapS = normalLayer4.wrapT = THREE.RepeatWrapping;
 
     geometry = new UnindexedIsometricPlaneBufferGeometry(512, 512, 256, 256);
     material = new THREE.RawShaderMaterial({
@@ -154,12 +169,17 @@ const init = () => {
         comboMap: { type: "t", value: comboRenderTarget.texture },
         displacementScale: { type: "f", value: 196.0 },
         mixMap: { type: "t", value: mixMap },
-        layer0: { type: "t", value: layer0 },
-        layer1: { type: "t", value: layer1 },
-        layer2: { type: "t", value: layer2 },
-        layer3: { type: "t", value: layer3 },
-        layer4: { type: "t", value: layer4 },
-        texScale: { type: "f", value: 32.0 },
+        diffuseLayer0: { type: "t", value: diffuseLayer0 },
+        diffuseLayer1: { type: "t", value: diffuseLayer1 },
+        diffuseLayer2: { type: "t", value: diffuseLayer2 },
+        diffuseLayer3: { type: "t", value: diffuseLayer3 },
+        diffuseLayer4: { type: "t", value: diffuseLayer4 },
+        normalLayer0: { type: "t", value: normalLayer0 },
+        normalLayer1: { type: "t", value: normalLayer1 },
+        normalLayer2: { type: "t", value: normalLayer2 },
+        normalLayer3: { type: "t", value: normalLayer3 },
+        normalLayer4: { type: "t", value: normalLayer4 },
+        texScale: { type: "f", value: 16.0 },
         mousePosition: { type: "vec3", value: mousePosition },
         sunPosition: { type: "vec3", value: sky.sunPosition },
         radius: { type: "f", value: 100.0 },
