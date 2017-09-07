@@ -1,6 +1,6 @@
 let THREE = require('three');
 let { PointerLockControls } = require('./PointerLockControls.js')(THREE);
-let { EffectComposer, RenderPass, BlurPass, KernelSize, SavePass } = require('postprocessing');
+let { EffectComposer, RenderPass, BlurPass, KernelSize, SavePass, ToneMappingPass, BloomPass, BokehPass } = require('postprocessing');
 let { UnindexedIsometricPlaneBufferGeometry } = require('./UnindexedIsometricPlaneGeometry.js')(THREE);
 let { remote } = require('electron');
 let fs = remote.require('fs');
@@ -32,6 +32,8 @@ let moveDown = false;
 let prevTime = performance.now();
 
 let modeLabel;
+
+let composer2;
 
 let Options = function() {
   this.radius = 10;
@@ -67,7 +69,7 @@ const init = () => {
 
   sky = new Sky();
   sky.init(scene, controls.getObject());
-  sky.azimuth = 0.15;
+  sky.azimuth = 0.27;
 
   options = new Options();
 
@@ -128,11 +130,16 @@ const init = () => {
   promises.push(load(loader, './free_3d_textures_pack_08_by_nobiax-d3awoah/pattern_44/diffus.png'));
   promises.push(load(loader, './free_3d_textures_pack_08_by_nobiax-d3awoah/pattern_45/diffus.png'));
   promises.push(load(loader, './free_3d_textures_pack_08_by_nobiax-d3awoah/pattern_46/diffus.png'));
-  promises.push(load(loader, './free_3d_textures_pack_08_by_nobiax-d3awoah/pattern_42/normal.png'));
+  promises.push(load(loader,'./free_3d_textures_pack_08_by_nobiax-d3awoah/pattern_42/normal.png'));
   promises.push(load(loader, './free_3d_textures_pack_08_by_nobiax-d3awoah/pattern_43/normal.png'));
   promises.push(load(loader, './free_3d_textures_pack_08_by_nobiax-d3awoah/pattern_44/normal.png'));
   promises.push(load(loader, './free_3d_textures_pack_08_by_nobiax-d3awoah/pattern_45/normal.png'));
   promises.push(load(loader, './free_3d_textures_pack_08_by_nobiax-d3awoah/pattern_46/normal.png'));
+  promises.push(image('./free_3d_textures_pack_08_by_nobiax-d3awoah/pattern_42/specular.png'));
+  promises.push(image('./free_3d_textures_pack_08_by_nobiax-d3awoah/pattern_43/specular.png'));
+  promises.push(image('./free_3d_textures_pack_08_by_nobiax-d3awoah/pattern_44/specular.png'));
+  promises.push(image('./free_3d_textures_pack_08_by_nobiax-d3awoah/pattern_45/specular.png'));
+  promises.push(image('./free_3d_textures_pack_08_by_nobiax-d3awoah/pattern_46/specular.png'));
   promises.push(readFile(fs, './vertexShader.glsl', 'utf8'));
   promises.push(readFile(fs, './fragmentShader.glsl', 'utf8'));
 
@@ -149,8 +156,86 @@ const init = () => {
     let normalLayer2 = values[8];
     let normalLayer3 = values[9];
     let normalLayer4 = values[10];
-    let vertexShader = values[11];
-    let fragmentShader = values[12];
+    let specularImage0 = values[11];
+    let specularImage1 = values[12];
+    let specularImage2 = values[13];
+    let specularImage3 = values[14];
+    let specularImage4 = values[15];
+    let vertexShader = values[16];
+    let fragmentShader = values[17];
+
+    let specularCanvas0 = document.createElement('canvas');
+    let specularCanvas1 = document.createElement('canvas');
+    let specularCanvas2 = document.createElement('canvas');
+    let specularCanvas3 = document.createElement('canvas');
+    let specularCanvas4 = document.createElement('canvas');
+    let specularComboCanvas0 = document.createElement('canvas');
+    let specularComboCanvas1 = document.createElement('canvas');
+
+    document.body.appendChild(specularCanvas0);
+    document.body.appendChild(specularCanvas1);
+    document.body.appendChild(specularCanvas2);
+    document.body.appendChild(specularCanvas3);
+    document.body.appendChild(specularCanvas4);
+    document.body.appendChild(specularComboCanvas0);
+    document.body.appendChild(specularComboCanvas1);
+
+    specularCanvas0.width = specularImage0.width;
+    specularCanvas0.height = specularImage0.height;
+    specularCanvas1.width = specularImage1.width;
+    specularCanvas1.height = specularImage1.height;
+    specularCanvas2.width = specularImage2.width;
+    specularCanvas2.height = specularImage2.height;
+    specularCanvas3.width = specularImage3.width;
+    specularCanvas3.height = specularImage3.height;
+    specularCanvas4.width = specularImage4.width;
+    specularCanvas4.height = specularImage4.height;
+    specularComboCanvas0.width = specularImage0.width;
+    specularComboCanvas0.height = specularImage0.height;
+    specularComboCanvas1.width = specularImage1.width;
+    specularComboCanvas1.height = specularImage1.height;
+
+    let specularContext0 = specularCanvas0.getContext('2d');
+    let specularContext1 = specularCanvas1.getContext('2d');
+    let specularContext2 = specularCanvas2.getContext('2d');
+    let specularContext3 = specularCanvas3.getContext('2d');
+    let specularContext4 = specularCanvas4.getContext('2d');
+    let specularComboContext0 = specularComboCanvas0.getContext('2d');
+    let specularComboContext1 = specularComboCanvas1.getContext('2d');
+
+    specularContext0.drawImage(specularImage0, 0, 0);
+    specularContext1.drawImage(specularImage1, 0, 0);
+    specularContext2.drawImage(specularImage2, 0, 0);
+    specularContext3.drawImage(specularImage3, 0, 0);
+    specularContext4.drawImage(specularImage4, 0, 0);
+
+    let specularImageData0 = specularContext0.getImageData(0, 0, specularCanvas0.width, specularCanvas0.height);
+    let specularImageData1 = specularContext1.getImageData(0, 0, specularCanvas1.width, specularCanvas1.height);
+    let specularImageData2 = specularContext2.getImageData(0, 0, specularCanvas2.width, specularCanvas2.height);
+    let specularImageData3 = specularContext3.getImageData(0, 0, specularCanvas3.width, specularCanvas3.height);
+    let specularImageData4 = specularContext4.getImageData(0, 0, specularCanvas4.width, specularCanvas4.height);
+    let specularComboImageData0 = specularComboContext0.createImageData(specularComboCanvas0.width, specularComboCanvas0.height);
+    let specularComboImageData1 = specularComboContext1.createImageData(specularComboCanvas1.width, specularComboCanvas1.height);
+
+    for (var i = 0; i < specularImageData0.data.length; i += 4) {
+      specularComboImageData0.data[i + 0] = specularImageData0.data[i + 0];
+      specularComboImageData0.data[i + 1] = specularImageData1.data[i + 0];
+      specularComboImageData0.data[i + 2] = specularImageData2.data[i + 0];
+      specularComboImageData0.data[i + 3] = 255;
+      specularComboImageData1.data[i + 0] = specularImageData3.data[i + 0];
+      specularComboImageData1.data[i + 1] = specularImageData4.data[i + 0];
+      specularComboImageData1.data[i + 2] = 0;
+      specularComboImageData1.data[i + 3] = 255;
+    }
+
+    specularComboContext0.putImageData(specularComboImageData0, 0, 0);
+    specularComboContext1.putImageData(specularComboImageData1, 0, 0);
+
+    let specularCombo0 = new THREE.Texture(specularComboCanvas0);
+    let specularCombo1 = new THREE.Texture(specularComboCanvas1);
+
+    specularCombo0.needsUpdate = true;
+    specularCombo1.needsUpdate = true;
 
     diffuseLayer0.wrapS = diffuseLayer0.wrapT = THREE.RepeatWrapping;
     diffuseLayer1.wrapS = diffuseLayer1.wrapT = THREE.RepeatWrapping;
@@ -162,6 +247,8 @@ const init = () => {
     normalLayer2.wrapS = normalLayer2.wrapT = THREE.RepeatWrapping;
     normalLayer3.wrapS = normalLayer3.wrapT = THREE.RepeatWrapping;
     normalLayer4.wrapS = normalLayer4.wrapT = THREE.RepeatWrapping;
+    specularCombo0.wrapS = specularCombo0.wrapT = THREE.RepeatWrapping;
+    specularCombo1.wrapS = specularCombo1.wrapT = THREE.RepeatWrapping;
 
     geometry = new UnindexedIsometricPlaneBufferGeometry(512, 512, 256, 256);
     material = new THREE.RawShaderMaterial({
@@ -174,12 +261,14 @@ const init = () => {
         diffuseLayer2: { type: "t", value: diffuseLayer2 },
         diffuseLayer3: { type: "t", value: diffuseLayer3 },
         diffuseLayer4: { type: "t", value: diffuseLayer4 },
-        normalLayer0: { type: "t", value: normalLayer0 },
-        normalLayer1: { type: "t", value: normalLayer1 },
-        normalLayer2: { type: "t", value: normalLayer2 },
-        normalLayer3: { type: "t", value: normalLayer3 },
-        normalLayer4: { type: "t", value: normalLayer4 },
-        texScale: { type: "f", value: 16.0 },
+        normalLayer0: {type: "t", value: normalLayer0 },
+        normalLayer1: {type: "t", value: normalLayer1 },
+        normalLayer2: {type: "t", value: normalLayer2 },
+        normalLayer3: {type: "t", value: normalLayer3 },
+        normalLayer4: {type: "t", value: normalLayer4 },
+        specularCombo0: {type: "t", value: specularCombo0 },
+        specularCombo1: {type: "t", value: specularCombo1 },
+        texScale: { type: "f", value: 32.0 },
         mousePosition: { type: "vec3", value: mousePosition },
         sunPosition: { type: "vec3", value: sky.sunPosition },
         radius: { type: "f", value: 100.0 },
@@ -207,6 +296,24 @@ const init = () => {
   composer = new EffectComposer(renderer);
   composer.addPass(new RenderPass( comboScene, comboCamera ) );
   composer.addPass(new SavePass(comboRenderTarget));
+
+  composer2 = new EffectComposer(renderer);
+  composer2.addPass(new RenderPass(scene, camera));
+  let bloomPass = new BloomPass({
+    resolutionScale: 1.0,
+    kernelSize: 1,
+    intensity: 0.5,
+    distinction: 1.0,
+    screenMode: true
+  });
+  bloomPass.renderToScreen = true;
+  composer2.addPass(bloomPass);
+
+  let bloomFolder = gui.addFolder('Bloom');
+  // bloomFolder.add(bloomPass, 'resolutionScale', 0.0, 1.0).step(0.01);
+  bloomFolder.add(bloomPass, 'kernelSize', 0, 5).step(1);
+  bloomFolder.add(bloomPass, 'intensity', 0.0, 3.0).step(0.01);
+  bloomFolder.add(bloomPass, 'distinction', 0.0, 10.0).step(0.1);
 
   document.body.appendChild(renderer.domElement);
 
@@ -271,7 +378,8 @@ const animate = () => {
   prevTime = time;
 
   composer.render(); // TODO: render to texture only when terrain gets modified instead of every frame
-  renderer.render(scene, camera);
+  composer2.render();
+  // renderer.render(scene, camera);
 
   stats.end();
 };

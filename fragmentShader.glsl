@@ -16,6 +16,8 @@ uniform sampler2D normalLayer1;
 uniform sampler2D normalLayer2;
 uniform sampler2D normalLayer3;
 uniform sampler2D normalLayer4;
+uniform sampler2D specularCombo0;
+uniform sampler2D specularCombo1;
 uniform float texScale;
 uniform vec3 mousePosition;
 uniform float radius;
@@ -28,7 +30,10 @@ varying vec3 vViewSpacePosition;
 varying vec3 vL;
 varying vec3 vV;
 
-const float radiusFactor = 0.13;
+const float RADIUS_FACTOR = 0.13;
+const float SHININESS_FACTOR = 8.0;
+const vec3 LIGHT_COLOR = vec3(1.0);
+const vec3 AMBIENT_COLOR = vec3(0.01);
 
 const int WITH_NORMALMAP_UNSIGNED = 1;
 const int WITH_NORMALMAP_2CHANNEL = 0;
@@ -36,12 +41,24 @@ const int WITH_NORMALMAP_GREEN_UP = 1;
 
 vec3 mixLayers(sampler2D layer0, sampler2D layer1, sampler2D layer2, sampler2D layer3, sampler2D layer4, sampler2D mixMap, vec2 texCoord, float texScale) {
   vec4 rgba = texture2D(mixMap, texCoord);
-  vec3 color = texture2D(layer0, texCoord * texScale).rgb;
-  color = mix(color, texture2D(layer1, texCoord * texScale).rgb, rgba.r);
-  color = mix(color, texture2D(layer2, texCoord * texScale).rgb, rgba.g);
-  color = mix(color, texture2D(layer3, texCoord * texScale).rgb, rgba.b);
-  color = mix(color, texture2D(layer4, texCoord * texScale).rgb, rgba.a);
-  return color;
+  vec3 m = texture2D(layer0, texCoord * texScale).rgb;
+  m = mix(m, texture2D(layer1, texCoord * texScale).rgb, rgba.r);
+  m = mix(m, texture2D(layer2, texCoord * texScale).rgb, rgba.g);
+  m = mix(m, texture2D(layer3, texCoord * texScale).rgb, rgba.b);
+  m = mix(m, texture2D(layer4, texCoord * texScale).rgb, rgba.a);
+  return m;
+}
+
+float mixSpecularCombo(sampler2D specularCombo0, sampler2D specularCombo1, sampler2D mixMap, vec2 texCoord, float texScale) {
+  vec4 rgba = texture2D(mixMap, texCoord);
+  vec3 s0 = texture2D(specularCombo0, texCoord * texScale).rgb;
+  vec2 s1 = texture2D(specularCombo1, texCoord * texScale).rg;
+  float m = s0.r;
+  m = mix(m, s0.g, rgba.r);
+  m = mix(m, s0.b, rgba.g);
+  m = mix(m, s1.r, rgba.b);
+  m = mix(m, s1.g, rgba.a);
+  return m;
 }
 
 float edgeFactor(vec2 vBC, float width) {
@@ -87,35 +104,38 @@ vec3 perturb_normal(vec3 N, vec3 V, vec2 texcoord) {
 }
 
 void main() {
-  vec3 N = normalize(normalMatrix * normalize(texture2D(comboMap, vTexCoord).rgb * 2.0 - 1.0)); // reversing the positive rgb values transformation
+  vec3 N = texture2D(comboMap, vTexCoord).rgb * 2.0 - 1.0;
+  N = normalize(normalMatrix * normalize(N)); // reversing the positive rgb values transformation
   N = perturb_normal(N, -vV, vTexCoord * texScale);
   vec3 L = normalize(vL);
   vec3 V = normalize(vV);
   vec3 H = normalize(L + V);
-  vec4 rgba = texture2D(mixMap, vTexCoord);
-  vec3 color = mixLayers(diffuseLayer0, diffuseLayer1, diffuseLayer2, diffuseLayer3, diffuseLayer4, mixMap, vTexCoord, texScale);
+  float NdotL = max(dot(N, L), 0.0);
+  float NdotH = max(dot(N, H), 0.0);
+  NdotH = NdotL != 0.0 ? NdotH : 0.0;
+  NdotH = pow(NdotH, SHININESS_FACTOR);
 
-  vec3 ambient = vec3(0.05, 0.05, 0.05);
-  vec3 diffuse = color * max(dot(N, L), 0.0);
-  float shininess = 8.0;
-  vec3 lightColor = vec3(1.0, 1.0, 1.0);
-  vec3 specular = lightColor * pow(max(dot(N, H), 0.0), shininess);
-  vec3 c = ambient + diffuse + 0.025 * specular;
+  vec3 ambient = AMBIENT_COLOR;
+  vec3 diffuseColor = mixLayers(diffuseLayer0, diffuseLayer1, diffuseLayer2, diffuseLayer3, diffuseLayer4, mixMap, vTexCoord, texScale);
+  vec3 diffuse = diffuseColor * NdotL;
+  float specularIntensity = mixSpecularCombo(specularCombo0, specularCombo1, mixMap, vTexCoord, texScale);
+  vec3 specular = LIGHT_COLOR * specularIntensity * NdotH;
+  vec3 c = ambient + diffuse + specular;
 
   vec3 mpos = vec3(mousePosition.x, vPosition.y, mousePosition.z);
 
   vec3 fogColor = vec3(0.5, 0.5, 0.5);
   float dist = length(vViewSpacePosition);
-  float be = 0.025 * smoothstep(0.0, 6.0, 32.0 - vViewSpacePosition.z);
-  float bi = 0.075 * smoothstep(0.0, 80.0, 10.0 - vViewSpacePosition.z);
+  float be = 0.0003 * smoothstep(0.0, 6.0, 32.0 - vViewSpacePosition.z);
+  float bi = 0.0009 * smoothstep(0.0, 80.0, 10.0 - vViewSpacePosition.z);
   float ext = exp(-dist * be);
   float insc = exp(-dist * bi);
 
-  if (controlsEnabled == 0 && length(vPosition - mpos) < radius * radiusFactor) {
-    c = mix(mix(vec3(0.0), c, edgeFactor(vBaryCoord, 0.5)), c, pow(length(vPosition - mpos) / (radius * radiusFactor), 8.0));
+  if (controlsEnabled == 0 && length(vPosition - mpos) < radius * RADIUS_FACTOR) {
+    c = mix(mix(vec3(0.0), c, edgeFactor(vBaryCoord, 0.5)), c, pow(length(vPosition - mpos) / (radius * RADIUS_FACTOR), 8.0));
   }
 
-  if (false) {
+  if (true) {
     c = c * ext + fogColor * (1.0 - insc);
   }
 
