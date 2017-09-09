@@ -1,6 +1,6 @@
 let THREE = require('three');
 let { PointerLockControls } = require('./PointerLockControls.js')(THREE);
-let { EffectComposer, RenderPass, BlurPass, KernelSize, SavePass, ToneMappingPass, BloomPass, BokehPass } = require('postprocessing');
+let { EffectComposer, RenderPass, BlurPass, KernelSize, SavePass, ToneMappingPass, BloomPass, BokehPass, SMAAPass } = require('postprocessing');
 let { UnindexedIsometricPlaneBufferGeometry } = require('./UnindexedIsometricPlaneGeometry.js')(THREE);
 let { remote } = require('electron');
 let fs = remote.require('fs');
@@ -8,6 +8,7 @@ let { readFile, load, image } = require('./utils.js');
 let { Sky } = require('./sky.js')(THREE);
 let dat = require('./dat.gui.min.js');
 let Stats = require('./stats.min.js');
+let { MyPass } = require('./MyPass.js')(THREE);
 
 let comboRenderTarget, comboCamera, comboScene, comboMesh;
 
@@ -250,6 +251,13 @@ const init = () => {
     specularCombo0.wrapS = specularCombo0.wrapT = THREE.RepeatWrapping;
     specularCombo1.wrapS = specularCombo1.wrapT = THREE.RepeatWrapping;
 
+    // let maxAnisotropy = renderer.getMaxAnisotropy();
+    // diffuseLayer0.anisotropy = maxAnisotropy;
+    // diffuseLayer1.anisotropy = maxAnisotropy;
+    // diffuseLayer2.anisotropy = maxAnisotropy;
+    // diffuseLayer3.anisotropy = maxAnisotropy;
+    // diffuseLayer4.anisotropy = maxAnisotropy;
+
     geometry = new UnindexedIsometricPlaneBufferGeometry(512, 512, 256, 256);
     material = new THREE.RawShaderMaterial({
       uniforms: {
@@ -301,19 +309,25 @@ const init = () => {
   composer2.addPass(new RenderPass(scene, camera));
   let bloomPass = new BloomPass({
     resolutionScale: 1.0,
-    kernelSize: 1,
-    intensity: 0.5,
-    distinction: 1.0,
+    kernelSize: 5,
+    intensity: 0.18,
+    distinction: 0.5,
     screenMode: true
   });
-  bloomPass.renderToScreen = true;
+  // bloomPass.renderToScreen = true;
   composer2.addPass(bloomPass);
+  let myPass = new MyPass();
+  // myPass.renderToScreen = true;
+  composer2.addPass(myPass);
+  let smaa = new SMAAPass(window.Image);
+  smaa.renderToScreen = true;
+  composer2.addPass(smaa);
 
   let bloomFolder = gui.addFolder('Bloom');
   // bloomFolder.add(bloomPass, 'resolutionScale', 0.0, 1.0).step(0.01);
   bloomFolder.add(bloomPass, 'kernelSize', 0, 5).step(1);
   bloomFolder.add(bloomPass, 'intensity', 0.0, 3.0).step(0.01);
-  bloomFolder.add(bloomPass, 'distinction', 0.0, 10.0).step(0.1);
+  bloomFolder.add(bloomPass, 'distinction', 0.0, 10.0).step(0.01);
 
   document.body.appendChild(renderer.domElement);
 
@@ -323,11 +337,11 @@ const init = () => {
   document.addEventListener('mouseup', onMouseUp, false);
   document.addEventListener('mousemove', onMouseMove, false);
 
-  document.addEventListener( 'pointerlockchange', onPointerLockChange, false);
-  document.addEventListener( 'pointerlockerror', onPointerLockError, false);
+  document.addEventListener('pointerlockchange', onPointerLockChange, false);
+  document.addEventListener('pointerlockerror', onPointerLockError, false);
 
-  document.addEventListener( 'keydown', onKeyDown, false );
-	document.addEventListener( 'keyup', onKeyUp, false );
+  document.addEventListener('keydown', onKeyDown, false);
+	document.addEventListener('keyup', onKeyUp, false);
 
   togglePointerLock();
 };
@@ -375,6 +389,11 @@ const animate = () => {
     heightmapTexture.needsUpdate = true;
   }
 
+  // sky.azimuth = sky.azimuth + delta / 10000;
+  // if (sky.azimuth > 1.0) {
+  //   sky.azimuth = 0.0;
+  // }
+
   prevTime = time;
 
   composer.render(); // TODO: render to texture only when terrain gets modified instead of every frame
@@ -389,6 +408,7 @@ const onWindowResize = () => {
   camera.updateProjectionMatrix();
 
   renderer.setSize(window.innerWidth, window.innerHeight);
+  composer2.setSize(window.innerWidth, window.innerHeight);
 };
 
 const onMouseDown = (event) => {

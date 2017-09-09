@@ -135,7 +135,7 @@ void main() {
     c = mix(mix(vec3(0.0), c, edgeFactor(vBaryCoord, 0.5)), c, pow(length(vPosition - mpos) / (radius * RADIUS_FACTOR), 8.0));
   }
 
-  if (true) {
+  if (false) {
     c = c * ext + fogColor * (1.0 - insc);
   }
 
