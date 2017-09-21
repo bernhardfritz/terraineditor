@@ -5,13 +5,12 @@ html, body {
   font: 11px Lucida Grande,sans-serif;
 }
 
-canvas {
+.disable-cursor {
   cursor: none;
 }
 
 .overlay {
   position: fixed;
-  cursor: none;
   user-select: none;
 }
 
@@ -34,9 +33,14 @@ canvas {
   border-left: 3px solid #2fa1d6;
 }
 
+.border-left-yellow {
+  border-left: 3px solid #fff000;
+}
+
 .border-left-purple {
   border-left: 3px solid #806787;
 }
+
 
 .bottom-left {
   bottom: 10px;

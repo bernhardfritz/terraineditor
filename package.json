@@ -11,6 +11,7 @@
   "license": "ISC",
   "dependencies": {
     "electron": "^1.6.11",
+    "javascript-state-machine": "^3.0.1",
     "postprocessing": "^2.2.0",
     "three": "^0.86.0"
   },

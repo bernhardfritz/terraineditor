@@ -9,6 +9,7 @@ let { Sky } = require('./sky.js')(THREE);
 let dat = require('./dat.gui.min.js');
 let Stats = require('./stats.min.js');
 let { MyPass } = require('./MyPass.js')(THREE);
+let StateMachine = require('javascript-state-machine');
 
 let comboRenderTarget, comboCamera, comboScene, comboMesh;
 
@@ -20,6 +21,8 @@ let composer, hblur, vblur;
 let mousePosition;
 
 let heightmapCanvas, heightmapContext, heightmapTexture;
+
+let splatMapCanvas, splatMapContext, splatMapTexture;
 
 let isLeftMouseButtonDown = false;
 let isRightMouseButtonDown = false;
@@ -43,6 +46,10 @@ let Options = function() {
 
 let gui;
 let stats;
+
+let fsm;
+
+let activeLayer = 1;
 
 const init = () => {
   loader = new THREE.TextureLoader();
@@ -94,6 +101,82 @@ const init = () => {
   heightmapCanvas = document.getElementById('heightmapCanvas');
   heightmapContext = heightmapCanvas.getContext('2d');
 
+  splatMapCanvas = document.createElement('canvas');
+  splatMapContext = splatMapCanvas.getContext('2d');
+
+  fsm = new StateMachine({
+    init: 'commandMode',
+    transitions: [
+      { name: 'switchToCameraMode', from: 'commandMode', to: 'cameraMode' },
+      { name: 'switchToCommandMode', from: 'cameraMode', to: 'commandMode' },
+      { name: 'switchToEditMode', from: 'commandMode', to: 'editMode' },
+      { name: 'switchToCommandMode', from: 'editMode', to: 'commandMode' },
+      { name: 'switchToTextureMode', from: 'commandMode', to: 'textureMode' },
+      { name: 'switchToCommandMode', from: 'textureMode', to: 'commandMode' }
+    ],
+    methods: {
+      onSwitchToCameraMode: function() {
+        if (material) {
+          material.uniforms.mode.value = fsm.allStates().slice(1).indexOf(fsm.state);
+        }
+        modeLabel.classList.remove('border-left-red');
+        modeLabel.classList.remove('border-left-green');
+        modeLabel.classList.remove('border-left-blue');
+        modeLabel.classList.remove('border-left-yellow');
+        modeLabel.classList.remove('border-left-purple');
+        document.documentElement.classList.remove('disable-cursor');
+        document.body.requestPointerLock();
+        modeLabel.textContent = 'CAMERA MODE';
+        modeLabel.classList.add('border-left-blue');
+        document.documentElement.classList.add('disable-cursor');
+      },
+      onSwitchToCommandMode: function() {
+        if (material) {
+          material.uniforms.mode.value = fsm.allStates().slice(1).indexOf(fsm.state);
+        }
+        modeLabel.classList.remove('border-left-red');
+        modeLabel.classList.remove('border-left-green');
+        modeLabel.classList.remove('border-left-blue');
+        modeLabel.classList.remove('border-left-yellow');
+        modeLabel.classList.remove('border-left-purple');
+        document.documentElement.classList.remove('disable-cursor');
+        document.exitPointerLock();
+        modeLabel.textContent = 'COMMAND MODE';
+        modeLabel.classList.add('border-left-purple');
+      },
+      onSwitchToEditMode: function() {
+        if (material) {
+          material.uniforms.mode.value = fsm.allStates().slice(1).indexOf(fsm.state);
+        }
+        modeLabel.classList.remove('border-left-red');
+        modeLabel.classList.remove('border-left-green');
+        modeLabel.classList.remove('border-left-blue');
+        modeLabel.classList.remove('border-left-yellow');
+        modeLabel.classList.remove('border-left-purple');
+        document.documentElement.classList.remove('disable-cursor');
+        document.exitPointerLock();
+        modeLabel.textContent = 'EDIT MODE';
+        modeLabel.classList.add('border-left-red');
+        document.documentElement.classList.add('disable-cursor');
+      },
+      onSwitchToTextureMode: function() {
+        if (material) {
+          material.uniforms.mode.value = fsm.allStates().slice(1).indexOf(fsm.state);
+        }
+        modeLabel.classList.remove('border-left-red');
+        modeLabel.classList.remove('border-left-green');
+        modeLabel.classList.remove('border-left-blue');
+        modeLabel.classList.remove('border-left-yellow');
+        modeLabel.classList.remove('border-left-purple');
+        document.documentElement.classList.remove('disable-cursor');
+        document.exitPointerLock();
+        modeLabel.textContent = 'TEXTURE MODE';
+        modeLabel.classList.add('border-left-yellow');
+        document.documentElement.classList.add('disable-cursor');
+      }
+    }
+  });
+
   let promises = [];
   promises.push(image('./heightmap.png'));
   promises.push(readFile(fs, './comboVertexShader.glsl', 'utf8'));
@@ -125,61 +208,58 @@ const init = () => {
   });
 
   promises = [];
-  promises.push(load(loader, './rgba_new.png'));
+  promises.push(image('./rgb.png'));
   promises.push(load(loader, './free_3d_textures_pack_08_by_nobiax-d3awoah/pattern_42/diffus.png'));
   promises.push(load(loader, './free_3d_textures_pack_08_by_nobiax-d3awoah/pattern_43/diffus.png'));
   promises.push(load(loader, './free_3d_textures_pack_08_by_nobiax-d3awoah/pattern_44/diffus.png'));
   promises.push(load(loader, './free_3d_textures_pack_08_by_nobiax-d3awoah/pattern_45/diffus.png'));
-  promises.push(load(loader, './free_3d_textures_pack_08_by_nobiax-d3awoah/pattern_46/diffus.png'));
   promises.push(load(loader,'./free_3d_textures_pack_08_by_nobiax-d3awoah/pattern_42/normal.png'));
   promises.push(load(loader, './free_3d_textures_pack_08_by_nobiax-d3awoah/pattern_43/normal.png'));
   promises.push(load(loader, './free_3d_textures_pack_08_by_nobiax-d3awoah/pattern_44/normal.png'));
   promises.push(load(loader, './free_3d_textures_pack_08_by_nobiax-d3awoah/pattern_45/normal.png'));
-  promises.push(load(loader, './free_3d_textures_pack_08_by_nobiax-d3awoah/pattern_46/normal.png'));
   promises.push(image('./free_3d_textures_pack_08_by_nobiax-d3awoah/pattern_42/specular.png'));
   promises.push(image('./free_3d_textures_pack_08_by_nobiax-d3awoah/pattern_43/specular.png'));
   promises.push(image('./free_3d_textures_pack_08_by_nobiax-d3awoah/pattern_44/specular.png'));
   promises.push(image('./free_3d_textures_pack_08_by_nobiax-d3awoah/pattern_45/specular.png'));
-  promises.push(image('./free_3d_textures_pack_08_by_nobiax-d3awoah/pattern_46/specular.png'));
+  promises.push(load(loader, './lm.png'));
   promises.push(readFile(fs, './vertexShader.glsl', 'utf8'));
   promises.push(readFile(fs, './fragmentShader.glsl', 'utf8'));
 
   Promise.all(promises)
   .then(values => {
-    let mixMap  = values[0];
+    let splatMapImage  = values[0];
     let diffuseLayer0 = values[1];
     let diffuseLayer1 = values[2];
     let diffuseLayer2 = values[3];
     let diffuseLayer3 = values[4];
-    let diffuseLayer4 = values[5];
-    let normalLayer0 = values[6];
-    let normalLayer1 = values[7];
-    let normalLayer2 = values[8];
-    let normalLayer3 = values[9];
-    let normalLayer4 = values[10];
-    let specularImage0 = values[11];
-    let specularImage1 = values[12];
-    let specularImage2 = values[13];
-    let specularImage3 = values[14];
-    let specularImage4 = values[15];
-    let vertexShader = values[16];
-    let fragmentShader = values[17];
+    let normalLayer0 = values[5];
+    let normalLayer1 = values[6];
+    let normalLayer2 = values[7];
+    let normalLayer3 = values[8];
+    let specularImage0 = values[9];
+    let specularImage1 = values[10];
+    let specularImage2 = values[11];
+    let specularImage3 = values[12];
+    let lightMap = values[13];
+    let vertexShader = values[14];
+    let fragmentShader = values[15];
 
     let specularCanvas0 = document.createElement('canvas');
     let specularCanvas1 = document.createElement('canvas');
     let specularCanvas2 = document.createElement('canvas');
     let specularCanvas3 = document.createElement('canvas');
-    let specularCanvas4 = document.createElement('canvas');
     let specularComboCanvas0 = document.createElement('canvas');
-    let specularComboCanvas1 = document.createElement('canvas');
+
+    document.body.appendChild(splatMapCanvas);
 
     document.body.appendChild(specularCanvas0);
     document.body.appendChild(specularCanvas1);
     document.body.appendChild(specularCanvas2);
     document.body.appendChild(specularCanvas3);
-    document.body.appendChild(specularCanvas4);
     document.body.appendChild(specularComboCanvas0);
-    document.body.appendChild(specularComboCanvas1);
+
+    splatMapCanvas.width = splatMapImage.width;
+    splatMapCanvas.height = splatMapImage.height;
 
     specularCanvas0.width = specularImage0.width;
     specularCanvas0.height = specularImage0.height;
@@ -189,98 +269,78 @@ const init = () => {
     specularCanvas2.height = specularImage2.height;
     specularCanvas3.width = specularImage3.width;
     specularCanvas3.height = specularImage3.height;
-    specularCanvas4.width = specularImage4.width;
-    specularCanvas4.height = specularImage4.height;
     specularComboCanvas0.width = specularImage0.width;
     specularComboCanvas0.height = specularImage0.height;
-    specularComboCanvas1.width = specularImage1.width;
-    specularComboCanvas1.height = specularImage1.height;
 
     let specularContext0 = specularCanvas0.getContext('2d');
     let specularContext1 = specularCanvas1.getContext('2d');
     let specularContext2 = specularCanvas2.getContext('2d');
     let specularContext3 = specularCanvas3.getContext('2d');
-    let specularContext4 = specularCanvas4.getContext('2d');
     let specularComboContext0 = specularComboCanvas0.getContext('2d');
-    let specularComboContext1 = specularComboCanvas1.getContext('2d');
+
+    /* do not draw default splatMap for now */
+    // splatMapContext.drawImage(splatMapImage, 0, 0);
+    splatMapContext.clearRect(0, 0, splatMapCanvas.width, splatMapCanvas.height);
 
     specularContext0.drawImage(specularImage0, 0, 0);
     specularContext1.drawImage(specularImage1, 0, 0);
     specularContext2.drawImage(specularImage2, 0, 0);
     specularContext3.drawImage(specularImage3, 0, 0);
-    specularContext4.drawImage(specularImage4, 0, 0);
 
     let specularImageData0 = specularContext0.getImageData(0, 0, specularCanvas0.width, specularCanvas0.height);
     let specularImageData1 = specularContext1.getImageData(0, 0, specularCanvas1.width, specularCanvas1.height);
     let specularImageData2 = specularContext2.getImageData(0, 0, specularCanvas2.width, specularCanvas2.height);
     let specularImageData3 = specularContext3.getImageData(0, 0, specularCanvas3.width, specularCanvas3.height);
-    let specularImageData4 = specularContext4.getImageData(0, 0, specularCanvas4.width, specularCanvas4.height);
     let specularComboImageData0 = specularComboContext0.createImageData(specularComboCanvas0.width, specularComboCanvas0.height);
-    let specularComboImageData1 = specularComboContext1.createImageData(specularComboCanvas1.width, specularComboCanvas1.height);
 
     for (var i = 0; i < specularImageData0.data.length; i += 4) {
       specularComboImageData0.data[i + 0] = specularImageData0.data[i + 0];
       specularComboImageData0.data[i + 1] = specularImageData1.data[i + 0];
       specularComboImageData0.data[i + 2] = specularImageData2.data[i + 0];
-      specularComboImageData0.data[i + 3] = 255;
-      specularComboImageData1.data[i + 0] = specularImageData3.data[i + 0];
-      specularComboImageData1.data[i + 1] = specularImageData4.data[i + 0];
-      specularComboImageData1.data[i + 2] = 0;
-      specularComboImageData1.data[i + 3] = 255;
+      specularComboImageData0.data[i + 3] = specularImageData3.data[i + 0];
     }
 
     specularComboContext0.putImageData(specularComboImageData0, 0, 0);
-    specularComboContext1.putImageData(specularComboImageData1, 0, 0);
+
+    splatMapTexture = new THREE.Texture(splatMapCanvas);
 
     let specularCombo0 = new THREE.Texture(specularComboCanvas0);
-    let specularCombo1 = new THREE.Texture(specularComboCanvas1);
+
+    splatMapTexture.needsUpdate = true;
 
     specularCombo0.needsUpdate = true;
-    specularCombo1.needsUpdate = true;
 
     diffuseLayer0.wrapS = diffuseLayer0.wrapT = THREE.RepeatWrapping;
     diffuseLayer1.wrapS = diffuseLayer1.wrapT = THREE.RepeatWrapping;
     diffuseLayer2.wrapS = diffuseLayer2.wrapT = THREE.RepeatWrapping;
     diffuseLayer3.wrapS = diffuseLayer3.wrapT = THREE.RepeatWrapping;
-    diffuseLayer4.wrapS = diffuseLayer4.wrapT = THREE.RepeatWrapping;
     normalLayer0.wrapS = normalLayer0.wrapT = THREE.RepeatWrapping;
     normalLayer1.wrapS = normalLayer1.wrapT = THREE.RepeatWrapping;
     normalLayer2.wrapS = normalLayer2.wrapT = THREE.RepeatWrapping;
     normalLayer3.wrapS = normalLayer3.wrapT = THREE.RepeatWrapping;
-    normalLayer4.wrapS = normalLayer4.wrapT = THREE.RepeatWrapping;
     specularCombo0.wrapS = specularCombo0.wrapT = THREE.RepeatWrapping;
-    specularCombo1.wrapS = specularCombo1.wrapT = THREE.RepeatWrapping;
-
-    // let maxAnisotropy = renderer.getMaxAnisotropy();
-    // diffuseLayer0.anisotropy = maxAnisotropy;
-    // diffuseLayer1.anisotropy = maxAnisotropy;
-    // diffuseLayer2.anisotropy = maxAnisotropy;
-    // diffuseLayer3.anisotropy = maxAnisotropy;
-    // diffuseLayer4.anisotropy = maxAnisotropy;
 
     geometry = new UnindexedIsometricPlaneBufferGeometry(512, 512, 256, 256);
     material = new THREE.RawShaderMaterial({
       uniforms: {
         comboMap: { type: "t", value: comboRenderTarget.texture },
         displacementScale: { type: "f", value: 196.0 },
-        mixMap: { type: "t", value: mixMap },
+        splatMap: { type: "t", value: splatMapTexture },
         diffuseLayer0: { type: "t", value: diffuseLayer0 },
         diffuseLayer1: { type: "t", value: diffuseLayer1 },
         diffuseLayer2: { type: "t", value: diffuseLayer2 },
         diffuseLayer3: { type: "t", value: diffuseLayer3 },
-        diffuseLayer4: { type: "t", value: diffuseLayer4 },
         normalLayer0: {type: "t", value: normalLayer0 },
         normalLayer1: {type: "t", value: normalLayer1 },
         normalLayer2: {type: "t", value: normalLayer2 },
         normalLayer3: {type: "t", value: normalLayer3 },
-        normalLayer4: {type: "t", value: normalLayer4 },
         specularCombo0: {type: "t", value: specularCombo0 },
-        specularCombo1: {type: "t", value: specularCombo1 },
+        lightMap: {type: "t", value: lightMap},
         texScale: { type: "f", value: 32.0 },
         mousePosition: { type: "vec3", value: mousePosition },
         sunPosition: { type: "vec3", value: sky.sunPosition },
         radius: { type: "f", value: 100.0 },
-        controlsEnabled: { type: "i", value: controls.enabled ? 1 : 0 }
+        mode: { type: "i", value: fsm.allStates().slice(1).indexOf(fsm.state) }
       },
       vertexShader: vertexShader.toString(),
       fragmentShader: fragmentShader.toString(),
@@ -331,6 +391,15 @@ const init = () => {
 
   document.body.appendChild(renderer.domElement);
 
+  modeLabel.classList.remove('border-left-red');
+  modeLabel.classList.remove('border-left-green');
+  modeLabel.classList.remove('border-left-blue');
+  modeLabel.classList.remove('border-left-yellow');
+  modeLabel.classList.remove('border-left-purple');
+  document.exitPointerLock();
+  modeLabel.textContent = 'COMMAND MODE';
+  modeLabel.classList.add('border-left-purple');
+
   window.addEventListener('resize', onWindowResize, false);
 
   document.addEventListener('mousedown', onMouseDown, false);
@@ -342,8 +411,6 @@ const init = () => {
 
   document.addEventListener('keydown', onKeyDown, false);
 	document.addEventListener('keyup', onKeyUp, false);
-
-  togglePointerLock();
 };
 
 const animate = () => {
@@ -363,30 +430,67 @@ const animate = () => {
     if (moveUp) controls.getObject().translateY(velocity);
     if (moveDown) controls.getObject().translateY(-velocity);
   } else if ((isLeftMouseButtonDown || isRightMouseButtonDown)) {
-    if (isRightMouseButtonDown) {
-      heightmapContext.globalCompositeOperation = 'difference';
-      heightmapContext.fillStyle = 'white';
-      heightmapContext.fillRect(0, 0, heightmapCanvas.width, heightmapCanvas.height);
+    if (fsm.state === 'editMode') {
+      if (isRightMouseButtonDown) {
+        heightmapContext.globalCompositeOperation = 'difference';
+        heightmapContext.fillStyle = 'white';
+        heightmapContext.fillRect(0, 0, heightmapCanvas.width, heightmapCanvas.height);
+      }
+      heightmapContext.beginPath();
+      let centerX = ((mousePosition.x / 256 + 1) / 2) * heightmapCanvas.width;
+      let centerY = ((mousePosition.z / 256 + 1) / 2) * heightmapCanvas.height;
+      let radiusFactor = heightmapCanvas.width / 4096; // this factor ensures that the visual representation of the editing radius coincides with the actual transformation area
+      heightmapContext.arc(centerX, centerY, material.uniforms.radius.value * radiusFactor, 0, 2 * Math.PI, false);
+      let radialGradient = heightmapContext.createRadialGradient(centerX, centerY, 0, centerX, centerY, material.uniforms.radius.value);
+      let c1 = Math.round((options.strength + 10) / 11);
+      let c2 = c1 - 1;
+      radialGradient.addColorStop(0, `rgba(${c1}, ${c1}, ${c1}, 1)`);
+      radialGradient.addColorStop(1, `rgba(${c2}, ${c2}, ${c2}, 1)`);
+      heightmapContext.globalCompositeOperation = 'lighter';
+      heightmapContext.fillStyle = radialGradient;
+      heightmapContext.fill();
+      if (isRightMouseButtonDown) {
+        heightmapContext.globalCompositeOperation = 'difference';
+        heightmapContext.fillStyle = 'white';
+        heightmapContext.fillRect(0, 0, heightmapCanvas.width, heightmapCanvas.height);
+      }
+      heightmapTexture.needsUpdate = true;
+    } else if (fsm.state === 'textureMode') {
+      if (isRightMouseButtonDown) {
+        splatMapContext.globalCompositeOperation = 'difference';
+        splatMapContext.fillStyle = 'white';
+        splatMapContext.fillRect(0, 0, splatMapCanvas.width, splatMapCanvas.height);
+      }
+      splatMapContext.beginPath();
+      let centerX = ((mousePosition.x / 256 + 1) / 2) * splatMapCanvas.width;
+      let centerY = ((mousePosition.z / 256 + 1) / 2) * splatMapCanvas.height;
+      let radiusFactor = splatMapCanvas.width / 4096; // this factor ensures that the visual representation of the editing radius coincides with the actual transformation area
+      let radialGradient = splatMapContext.createRadialGradient(centerX, centerY, 0, centerX, centerY, material.uniforms.radius.value * radiusFactor);
+      let c1 = Math.round(options.strength * 2.55);
+      switch(activeLayer) {
+        case 1:
+          radialGradient.addColorStop(0, `rgba(${c1}, 0, 0, 1)`);
+          radialGradient.addColorStop(1, 'transparent');
+          break;
+        case 2:
+          radialGradient.addColorStop(0, `rgba(0, ${c1}, 0, 1)`);
+          radialGradient.addColorStop(1, 'transparent');
+          break;
+        case 3:
+          radialGradient.addColorStop(0, `rgba(0, 0, ${c1}, 1)`);
+          radialGradient.addColorStop(1, 'transparent');
+          break;
+      }
+      splatMapContext.globalCompositeOperation = 'lighter';
+      splatMapContext.fillStyle = radialGradient;
+      splatMapContext.fillRect(centerX - material.uniforms.radius.value * radiusFactor, centerY - material.uniforms.radius.value * radiusFactor, centerX + material.uniforms.radius.value * radiusFactor, centerY + material.uniforms.radius.value * radiusFactor);
+      if (isRightMouseButtonDown) {
+        splatMapContext.globalCompositeOperation = 'difference';
+        splatMapContext.fillStyle = 'white';
+        splatMapContext.fillRect(0, 0, splatMapCanvas.width, splatMapCanvas.height);
+      }
+      splatMapTexture.needsUpdate = true;
     }
-    heightmapContext.beginPath();
-    let centerX = ((mousePosition.x / 256 + 1) / 2) * heightmapCanvas.width;
-    let centerY = ((mousePosition.z / 256 + 1) / 2) * heightmapCanvas.height;
-    let radiusFactor = heightmapCanvas.width / 4096; // this factor ensures that the visual representation of the editing radius coincides with the actual transformation area
-    heightmapContext.arc(centerX, centerY, material.uniforms.radius.value * radiusFactor, 0, 2 * Math.PI, false);
-    let radialGradient = heightmapContext.createRadialGradient(centerX, centerY, 0, centerX, centerY, material.uniforms.radius.value);
-    let c1 = Math.round((options.strength + 10) / 11);
-    let c2 = c1 - 1;
-    radialGradient.addColorStop(0, `rgba(${c1}, ${c1}, ${c1}, 1)`);
-    radialGradient.addColorStop(1, `rgba(${c2}, ${c2}, ${c2}, 1)`);
-    heightmapContext.globalCompositeOperation = 'lighter';
-    heightmapContext.fillStyle = radialGradient;
-    heightmapContext.fill();
-    if (isRightMouseButtonDown) {
-      heightmapContext.globalCompositeOperation = 'difference';
-      heightmapContext.fillStyle = 'white';
-      heightmapContext.fillRect(0, 0, heightmapCanvas.width, heightmapCanvas.height);
-    }
-    heightmapTexture.needsUpdate = true;
   }
 
   // sky.azimuth = sky.azimuth + delta / 10000;
@@ -466,9 +570,6 @@ const onPointerLockChange = (event) => {
   } else {
     controls.enabled = false;
   }
-  if (material) {
-    material.uniforms.controlsEnabled.value = controls.enabled ? 1 : 0;
-  }
 };
 
 const onPointerLockError = (event) => {
@@ -480,8 +581,21 @@ const onKeyDown = (event) => {
     case 16: // shift
       moveDown = true;
       break;
+    case 49: // 1
+      activeLayer = 1;
+      break;
+    case 50: // 2
+      activeLayer = 2;
+      break;
+    case 51: // 3
+      activeLayer = 3;
+      break;
     case 27: // esc
-      togglePointerLock();
+      try {
+        fsm.switchToCommandMode();
+      } catch(e) {
+        // do nothing
+      }
       break;
     case 32: // space
       moveUp = true;
@@ -489,11 +603,32 @@ const onKeyDown = (event) => {
     case 65: // a
       moveLeft = true;
       break;
+    case 67: // c
+      try {
+        fsm.switchToCameraMode();
+      } catch(e) {
+        // do nothing
+      }
+      break;
     case 68: // d
       moveRight = true;
       break;
+    case 69: // e
+      try {
+        fsm.switchToEditMode();
+      } catch(e) {
+        // do nothing
+      }
+      break;
     case 83: // s
       moveBackward = true;
+      break;
+    case 84: // t
+      try {
+        fsm.switchToTextureMode();
+      } catch(e) {
+        // do nothing
+      }
       break;
     case 87: // w
       moveForward = true;
@@ -521,22 +656,6 @@ const onKeyUp = (event) => {
     case 87: // w
       moveForward = false;
       break;
-  }
-};
-
-const togglePointerLock = () => {
-  modeLabel.classList.remove('border-left-red');
-  modeLabel.classList.remove('border-left-green');
-  modeLabel.classList.remove('border-left-blue');
-  modeLabel.classList.remove('border-left-purple');
-  if (controls.enabled) {
-    document.exitPointerLock();
-    modeLabel.textContent = 'EDIT MODE';
-    modeLabel.classList.add('border-left-red');
-  } else {
-    document.body.requestPointerLock();
-    modeLabel.textContent = 'CAMERA MODE';
-    modeLabel.classList.add('border-left-blue');
   }
 };
 
