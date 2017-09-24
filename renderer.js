@@ -10,6 +10,8 @@ let dat = require('./dat.gui.min.js');
 let Stats = require('./stats.min.js');
 let { MyPass } = require('./MyPass.js')(THREE);
 let StateMachine = require('javascript-state-machine');
+let StateMachineHistory = require('javascript-state-machine/lib/history');
+let { StateIndicator } = require('./StateIndicator.js');
 
 let comboRenderTarget, comboCamera, comboScene, comboMesh;
 
@@ -25,6 +27,7 @@ let heightmapCanvas, heightmapContext, heightmapTexture;
 let splatMapCanvas, splatMapContext, splatMapTexture;
 
 let isLeftMouseButtonDown = false;
+let isMiddleMouseButtonDown = false;
 let isRightMouseButtonDown = false;
 
 let moveForward = false;
@@ -47,9 +50,24 @@ let Options = function() {
 let gui;
 let stats;
 
+let prevState;
+
 let fsm;
 
+let stateIndicator;
+
 let activeLayer = 1;
+
+const CAMERA_MODE = 'CAMERA MODE';
+const COMMAND_MODE = 'COMMAND MODE';
+const EDIT_MODE = 'EDIT MODE';
+const TEXTURE_MODE = 'TEXTURE MODE';
+
+const RED = '#e61d5f';
+const GREEN = '#1ed36f';
+const BLUE = '#2fa1d6';
+const YELLOW = '#fff000';
+const PURPLE = '#806787';
 
 const init = () => {
   loader = new THREE.TextureLoader();
@@ -104,77 +122,68 @@ const init = () => {
   splatMapCanvas = document.createElement('canvas');
   splatMapContext = splatMapCanvas.getContext('2d');
 
+  stateIndicator = new StateIndicator();
+
   fsm = new StateMachine({
     init: 'commandMode',
     transitions: [
-      { name: 'switchToCameraMode', from: 'commandMode', to: 'cameraMode' },
-      { name: 'switchToCommandMode', from: 'cameraMode', to: 'commandMode' },
-      { name: 'switchToEditMode', from: 'commandMode', to: 'editMode' },
-      { name: 'switchToCommandMode', from: 'editMode', to: 'commandMode' },
+      { name: 'switchToCameraMode',  from: 'commandMode', to: 'cameraMode'  },
+      { name: 'switchToEditMode',    from: 'commandMode', to: 'editMode'    },
       { name: 'switchToTextureMode', from: 'commandMode', to: 'textureMode' },
-      { name: 'switchToCommandMode', from: 'textureMode', to: 'commandMode' }
+      { name: 'switchToCommandMode', from: 'cameraMode',  to: 'commandMode' },
+      { name: 'switchToEditMode',    from: 'cameraMode',  to: 'editMode'    },
+      { name: 'switchToTextureMode', from: 'cameraMode',  to: 'textureMode' },
+      { name: 'switchToCommandMode', from: 'editMode',    to: 'commandMode' },
+      { name: 'switchToCameraMode',  from: 'editMode',    to: 'cameraMode'  },
+      { name: 'switchToTextureMode', from: 'editMode',    to: 'textureMode' },
+      { name: 'switchToCommandMode', from: 'textureMode', to: 'commandMode' },
+      { name: 'switchToCameraMode',  from: 'textureMode', to: 'cameraMode'  },
+      { name: 'switchToEditMode',    from: 'textureMode', to: 'editMode'    }
     ],
     methods: {
       onSwitchToCameraMode: function() {
         if (material) {
           material.uniforms.mode.value = fsm.allStates().slice(1).indexOf(fsm.state);
         }
-        modeLabel.classList.remove('border-left-red');
-        modeLabel.classList.remove('border-left-green');
-        modeLabel.classList.remove('border-left-blue');
-        modeLabel.classList.remove('border-left-yellow');
-        modeLabel.classList.remove('border-left-purple');
         document.documentElement.classList.remove('disable-cursor');
         document.body.requestPointerLock();
-        modeLabel.textContent = 'CAMERA MODE';
-        modeLabel.classList.add('border-left-blue');
+        stateIndicator.text = CAMERA_MODE;
+        stateIndicator.color = BLUE;
         document.documentElement.classList.add('disable-cursor');
       },
       onSwitchToCommandMode: function() {
         if (material) {
           material.uniforms.mode.value = fsm.allStates().slice(1).indexOf(fsm.state);
         }
-        modeLabel.classList.remove('border-left-red');
-        modeLabel.classList.remove('border-left-green');
-        modeLabel.classList.remove('border-left-blue');
-        modeLabel.classList.remove('border-left-yellow');
-        modeLabel.classList.remove('border-left-purple');
         document.documentElement.classList.remove('disable-cursor');
         document.exitPointerLock();
-        modeLabel.textContent = 'COMMAND MODE';
-        modeLabel.classList.add('border-left-purple');
+        stateIndicator.text = COMMAND_MODE;
+        stateIndicator.color = PURPLE;
       },
       onSwitchToEditMode: function() {
         if (material) {
           material.uniforms.mode.value = fsm.allStates().slice(1).indexOf(fsm.state);
         }
-        modeLabel.classList.remove('border-left-red');
-        modeLabel.classList.remove('border-left-green');
-        modeLabel.classList.remove('border-left-blue');
-        modeLabel.classList.remove('border-left-yellow');
-        modeLabel.classList.remove('border-left-purple');
         document.documentElement.classList.remove('disable-cursor');
         document.exitPointerLock();
-        modeLabel.textContent = 'EDIT MODE';
-        modeLabel.classList.add('border-left-red');
+        stateIndicator.text = EDIT_MODE;
+        stateIndicator.color = RED;
         document.documentElement.classList.add('disable-cursor');
       },
       onSwitchToTextureMode: function() {
         if (material) {
           material.uniforms.mode.value = fsm.allStates().slice(1).indexOf(fsm.state);
         }
-        modeLabel.classList.remove('border-left-red');
-        modeLabel.classList.remove('border-left-green');
-        modeLabel.classList.remove('border-left-blue');
-        modeLabel.classList.remove('border-left-yellow');
-        modeLabel.classList.remove('border-left-purple');
         document.documentElement.classList.remove('disable-cursor');
         document.exitPointerLock();
-        modeLabel.textContent = 'TEXTURE MODE';
-        modeLabel.classList.add('border-left-yellow');
+        stateIndicator.text = TEXTURE_MODE;
+        stateIndicator.color = YELLOW;
         document.documentElement.classList.add('disable-cursor');
       }
-    }
+    },
+    plugins: [
+      new StateMachineHistory()
+    ]
   });
 
   let promises = [];
@@ -391,14 +400,9 @@ const init = () => {
 
   document.body.appendChild(renderer.domElement);
 
-  modeLabel.classList.remove('border-left-red');
-  modeLabel.classList.remove('border-left-green');
-  modeLabel.classList.remove('border-left-blue');
-  modeLabel.classList.remove('border-left-yellow');
-  modeLabel.classList.remove('border-left-purple');
   document.exitPointerLock();
-  modeLabel.textContent = 'COMMAND MODE';
-  modeLabel.classList.add('border-left-purple');
+  stateIndicator.text = COMMAND_MODE;
+  stateIndicator.color = PURPLE;
 
   window.addEventListener('resize', onWindowResize, false);
 
@@ -421,7 +425,7 @@ const animate = () => {
   let time = performance.now();
   let delta = time - prevTime;
 
-  if (controls.enabled) {
+  /* if (controls.enabled) { */
     let velocity = delta / 5;
     if (moveForward) controls.getObject().translateZ(-velocity);
     if (moveBackward) controls.getObject().translateZ(velocity);
@@ -429,7 +433,7 @@ const animate = () => {
     if (moveRight) controls.getObject().translateX(velocity);
     if (moveUp) controls.getObject().translateY(velocity);
     if (moveDown) controls.getObject().translateY(-velocity);
-  } else if ((isLeftMouseButtonDown || isRightMouseButtonDown)) {
+  /*} else */if (isLeftMouseButtonDown || isRightMouseButtonDown) {
     if (fsm.state === 'editMode') {
       if (isRightMouseButtonDown) {
         heightmapContext.globalCompositeOperation = 'difference';
@@ -521,6 +525,12 @@ const onMouseDown = (event) => {
       isLeftMouseButtonDown = true;
       break;
     case 1: // middle
+      isMiddleMouseButtonDown = true;
+      try {
+        fsm.switchToCameraMode();
+      } catch(e) {
+        // do nothing
+      }
       break;
     case 2: // right
       isRightMouseButtonDown = true;
@@ -534,6 +544,19 @@ const onMouseUp = (event) => {
       isLeftMouseButtonDown = false;
       break;
     case 1: // middle
+      isMiddleMouseButtonDown = false;
+      try {  
+        let prevState = fsm.history[fsm.history.length - 2];
+        if ('commandMode' === prevState) {
+          fsm.switchToCommandMode();
+        } else if ('editMode' === prevState) {
+          fsm.switchToEditMode();
+        } else if ('textureMode' === prevState) {
+          fsm.switchToTextureMode();
+        }
+      } catch(e) {
+        // do nothing
+      }
       break;
     case 2: // right
       isRightMouseButtonDown = false;
