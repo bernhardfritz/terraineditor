@@ -6,17 +6,9 @@ uniform mat3 normalMatrix;
 
 uniform sampler2D comboMap;
 uniform sampler2D splatMap;
-uniform sampler2D diffuseLayer0;
-uniform sampler2D diffuseLayer1;
-uniform sampler2D diffuseLayer2;
-uniform sampler2D diffuseLayer3;
-uniform sampler2D normalLayer0;
-uniform sampler2D normalLayer1;
-uniform sampler2D normalLayer2;
-uniform sampler2D normalLayer3;
-uniform sampler2D specularCombo0;
-uniform sampler2D specularCombo1;
-uniform sampler2D lightMap;
+uniform sampler2D diffuseLayers[4];
+uniform sampler2D normalLayers[4];
+uniform sampler2D specularLayers[4];
 uniform float texScale;
 uniform vec3 mousePosition;
 uniform float radius;
@@ -31,30 +23,29 @@ varying vec3 vV;
 
 const float RADIUS_FACTOR = 0.13;
 const float SHININESS_FACTOR = 8.0;
-const vec3 LIGHT_COLOR = vec3(1.0);
-const vec3 AMBIENT_COLOR = vec3(0.01);
+const vec3 LIGHT_COLOR = vec3(1.0, 0.894117647058824, 0.8);
+const vec3 AMBIENT_COLOR = 0.01 * LIGHT_COLOR;
 const float RING_THRESHOLD = 0.33;
 
 const int WITH_NORMALMAP_UNSIGNED = 1;
 const int WITH_NORMALMAP_2CHANNEL = 0;
 const int WITH_NORMALMAP_GREEN_UP = 1;
 
-vec3 mixLayers(sampler2D layer0, sampler2D layer1, sampler2D layer2, sampler2D layer3, sampler2D splatMap, vec2 texCoord, float texScale) {
+vec3 mixLayersToVec3(sampler2D[4] layers, sampler2D splatMap, vec2 texCoord, float texScale) {
   vec3 rgb = texture2D(splatMap, texCoord).rgb;
-  vec3 m = texture2D(layer0, texCoord * texScale).rgb;
-  m = mix(m, texture2D(layer1, texCoord * texScale).rgb, rgb.r);
-  m = mix(m, texture2D(layer2, texCoord * texScale).rgb, rgb.g);
-  m = mix(m, texture2D(layer3, texCoord * texScale).rgb, rgb.b);
+  vec3 m = texture2D(layers[0], texCoord * texScale).rgb;
+  m = mix(m, texture2D(layers[1], texCoord * texScale).rgb, rgb.r);
+  m = mix(m, texture2D(layers[2], texCoord * texScale).rgb, rgb.g);
+  m = mix(m, texture2D(layers[3], texCoord * texScale).rgb, rgb.b);
   return m;
 }
 
-float mixSpecularCombo(sampler2D specularCombo0, sampler2D splatMap, vec2 texCoord, float texScale) {
+float mixLayersToFloat(sampler2D[4] layers, sampler2D splatMap, vec2 texCoord, float texScale) {
   vec3 rgb = texture2D(splatMap, texCoord).rgb;
-  vec4 s0 = texture2D(specularCombo0, texCoord * texScale).rgba;
-  float m = s0.r;
-  m = mix(m, s0.g, rgb.r);
-  m = mix(m, s0.b, rgb.g);
-  m = mix(m, s0.a, rgb.b);
+  float m = texture2D(layers[0], texCoord * texScale).r;
+  m = mix(m, texture2D(layers[1], texCoord * texScale).r, rgb.r);
+  m = mix(m, texture2D(layers[2], texCoord * texScale).r, rgb.g);
+  m = mix(m, texture2D(layers[3], texCoord * texScale).r, rgb.b);
   return m;
 }
 
@@ -86,7 +77,7 @@ mat3 cotangent_frame(vec3 N, vec3 p, vec2 uv) {
 vec3 perturb_normal(vec3 N, vec3 V, vec2 texcoord) {
     // assume N, the interpolated vertex normal and
     // V, the view vector (vertex to eye)
-    vec3 map = mixLayers(normalLayer0, normalLayer1, normalLayer2, normalLayer3, splatMap, vTexCoord, texScale);
+    vec3 map = mixLayersToVec3(normalLayers, splatMap, vTexCoord, texScale);
     if (WITH_NORMALMAP_UNSIGNED == 1) {
       map = map * 255./127. - 128./127.;
     }
@@ -113,14 +104,11 @@ void main() {
   NdotH = pow(NdotH, SHININESS_FACTOR);
 
   vec3 ambient = AMBIENT_COLOR;
-  vec3 diffuseColor = mixLayers(diffuseLayer0, diffuseLayer1, diffuseLayer2, diffuseLayer3, splatMap, vTexCoord, texScale);
+  vec3 diffuseColor = mixLayersToVec3(diffuseLayers, splatMap, vTexCoord, texScale);
   vec3 diffuse = diffuseColor * NdotL;
-  float specularIntensity = mixSpecularCombo(specularCombo0, splatMap, vTexCoord, texScale);
+  float specularIntensity = mixLayersToFloat(specularLayers, splatMap, vTexCoord, texScale);
   vec3 specular = LIGHT_COLOR * specularIntensity * NdotH;
   vec3 c = ambient + diffuse + specular;
-  /* lightmap stuff WIP */
-  // vec3 lmc = (texture2D(lightMap, vTexCoord).rgb * diffuseColor) * max(dot(vN, vec3(0, 1, 0)), 0.0);
-  // vec3 c = ambient + diffuse + specular + lmc;
 
   vec3 mpos = vec3(mousePosition.x, vPosition.y, mousePosition.z);
 

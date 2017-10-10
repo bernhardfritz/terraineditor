@@ -9,8 +9,6 @@ let { Sky } = require('./sky.js')(THREE);
 let dat = require('./dat.gui.min.js');
 let Stats = require('./stats.min.js');
 let { MyPass } = require('./MyPass.js')(THREE);
-let StateMachine = require('javascript-state-machine');
-let StateMachineHistory = require('javascript-state-machine/lib/history');
 let { StateIndicator } = require('./StateIndicator.js');
 
 let comboRenderTarget, comboCamera, comboScene, comboMesh;
@@ -50,24 +48,36 @@ let Options = function() {
 let gui;
 let stats;
 
-let prevState;
-
-let fsm;
-
 let stateIndicator;
 
 let activeLayer = 1;
 
-const CAMERA_MODE = 'CAMERA MODE';
-const COMMAND_MODE = 'COMMAND MODE';
-const EDIT_MODE = 'EDIT MODE';
-const TEXTURE_MODE = 'TEXTURE MODE';
+const DEFAULT_TEXTURE_WIDTH_AND_HEIGHT = { width: 1024, height: 1024 };
+const DEFAULT_TEXTURE_WRAPPING = { wrapS: THREE.RepeatWrapping, wrapT: THREE.RepeatWrapping };
 
-const RED = '#e61d5f';
-const GREEN = '#1ed36f';
-const BLUE = '#2fa1d6';
-const YELLOW = '#fff000';
-const PURPLE = '#806787';
+const State = {
+  CAMERA_MODE: {
+    text: 'CAMERA MODE',
+    color: '#2fa1d6' // blue
+  },
+  COMMAND_MODE: {
+    text: 'COMMAND MODE',
+    color: '#806787' // purple
+  },
+  EDIT_MODE: {
+    text: 'EDIT MODE',
+    color: '#e61d5f' // red
+  },
+  TEXTURE_MODE: {
+    text: 'TEXTURE MODE',
+    color: '#fff000' // yellow
+  },  
+}; // '#1ed36f' green
+
+let states = [State.CAMERA_MODE, State.COMMAND_MODE, State.EDIT_MODE, State.TEXTURE_MODE]
+
+let prevState = State.COMMAND_MODE;
+let currState = State.COMMAND_MODE;
 
 const init = () => {
   loader = new THREE.TextureLoader();
@@ -124,81 +134,20 @@ const init = () => {
 
   stateIndicator = new StateIndicator();
 
-  fsm = new StateMachine({
-    init: 'commandMode',
-    transitions: [
-      { name: 'switchToCameraMode',  from: 'commandMode', to: 'cameraMode'  },
-      { name: 'switchToEditMode',    from: 'commandMode', to: 'editMode'    },
-      { name: 'switchToTextureMode', from: 'commandMode', to: 'textureMode' },
-      { name: 'switchToCommandMode', from: 'cameraMode',  to: 'commandMode' },
-      { name: 'switchToEditMode',    from: 'cameraMode',  to: 'editMode'    },
-      { name: 'switchToTextureMode', from: 'cameraMode',  to: 'textureMode' },
-      { name: 'switchToCommandMode', from: 'editMode',    to: 'commandMode' },
-      { name: 'switchToCameraMode',  from: 'editMode',    to: 'cameraMode'  },
-      { name: 'switchToTextureMode', from: 'editMode',    to: 'textureMode' },
-      { name: 'switchToCommandMode', from: 'textureMode', to: 'commandMode' },
-      { name: 'switchToCameraMode',  from: 'textureMode', to: 'cameraMode'  },
-      { name: 'switchToEditMode',    from: 'textureMode', to: 'editMode'    }
-    ],
-    methods: {
-      onSwitchToCameraMode: function() {
-        if (material) {
-          material.uniforms.mode.value = fsm.allStates().slice(1).indexOf(fsm.state);
-        }
-        document.documentElement.classList.remove('disable-cursor');
-        document.body.requestPointerLock();
-        stateIndicator.text = CAMERA_MODE;
-        stateIndicator.color = BLUE;
-        document.documentElement.classList.add('disable-cursor');
-      },
-      onSwitchToCommandMode: function() {
-        if (material) {
-          material.uniforms.mode.value = fsm.allStates().slice(1).indexOf(fsm.state);
-        }
-        document.documentElement.classList.remove('disable-cursor');
-        document.exitPointerLock();
-        stateIndicator.text = COMMAND_MODE;
-        stateIndicator.color = PURPLE;
-      },
-      onSwitchToEditMode: function() {
-        if (material) {
-          material.uniforms.mode.value = fsm.allStates().slice(1).indexOf(fsm.state);
-        }
-        document.documentElement.classList.remove('disable-cursor');
-        document.exitPointerLock();
-        stateIndicator.text = EDIT_MODE;
-        stateIndicator.color = RED;
-        document.documentElement.classList.add('disable-cursor');
-      },
-      onSwitchToTextureMode: function() {
-        if (material) {
-          material.uniforms.mode.value = fsm.allStates().slice(1).indexOf(fsm.state);
-        }
-        document.documentElement.classList.remove('disable-cursor');
-        document.exitPointerLock();
-        stateIndicator.text = TEXTURE_MODE;
-        stateIndicator.color = YELLOW;
-        document.documentElement.classList.add('disable-cursor');
-      }
-    },
-    plugins: [
-      new StateMachineHistory()
-    ]
-  });
-
-  let promises = [];
-  promises.push(image('./heightmap.png'));
-  promises.push(readFile(fs, './comboVertexShader.glsl', 'utf8'));
-  promises.push(readFile(fs, './comboFragmentShader.glsl', 'utf8'));
+  let promises = [
+    image('./heightmap.png'),
+    readFile(fs, './comboVertexShader.glsl', 'utf8'),
+    readFile(fs, './comboFragmentShader.glsl', 'utf8')
+  ];
 
   Promise.all(promises)
   .then(values => {
-    let heightmap = values[0];
-    let comboVertexShader = values[1];
-    let comboFragmentShader = values[2];
-
-    heightmapCanvas.width = heightmap.width;
-    heightmapCanvas.height = heightmap.height;
+    let [
+      heightmap,
+      comboVertexShader,
+      comboFragmentShader
+    ] = values;
+    Object.assign(heightmapCanvas, DEFAULT_TEXTURE_WIDTH_AND_HEIGHT);
     heightmapContext.drawImage(heightmap, 0, 0);
     heightmapTexture = new THREE.Texture(heightmapCanvas);
     heightmapTexture.needsUpdate = true;
@@ -216,118 +165,80 @@ const init = () => {
     comboScene.add(comboMesh);
   });
 
-  promises = [];
-  promises.push(image('./rgb.png'));
-  promises.push(load(loader, './free_3d_textures_pack_08_by_nobiax-d3awoah/pattern_42/diffus.png'));
-  promises.push(load(loader, './free_3d_textures_pack_08_by_nobiax-d3awoah/pattern_43/diffus.png'));
-  promises.push(load(loader, './free_3d_textures_pack_08_by_nobiax-d3awoah/pattern_44/diffus.png'));
-  promises.push(load(loader, './free_3d_textures_pack_08_by_nobiax-d3awoah/pattern_45/diffus.png'));
-  promises.push(load(loader,'./free_3d_textures_pack_08_by_nobiax-d3awoah/pattern_42/normal.png'));
-  promises.push(load(loader, './free_3d_textures_pack_08_by_nobiax-d3awoah/pattern_43/normal.png'));
-  promises.push(load(loader, './free_3d_textures_pack_08_by_nobiax-d3awoah/pattern_44/normal.png'));
-  promises.push(load(loader, './free_3d_textures_pack_08_by_nobiax-d3awoah/pattern_45/normal.png'));
-  promises.push(image('./free_3d_textures_pack_08_by_nobiax-d3awoah/pattern_42/specular.png'));
-  promises.push(image('./free_3d_textures_pack_08_by_nobiax-d3awoah/pattern_43/specular.png'));
-  promises.push(image('./free_3d_textures_pack_08_by_nobiax-d3awoah/pattern_44/specular.png'));
-  promises.push(image('./free_3d_textures_pack_08_by_nobiax-d3awoah/pattern_45/specular.png'));
-  promises.push(load(loader, './lm.png'));
-  promises.push(readFile(fs, './vertexShader.glsl', 'utf8'));
-  promises.push(readFile(fs, './fragmentShader.glsl', 'utf8'));
+  promises = [
+    image('./rgb.png'),
+    load(loader, './free_3d_textures_pack_08_by_nobiax-d3awoah/pattern_42/diffus.png'),
+    load(loader, './free_3d_textures_pack_08_by_nobiax-d3awoah/pattern_43/diffus.png'),
+    load(loader, './free_3d_textures_pack_08_by_nobiax-d3awoah/pattern_44/diffus.png'),
+    load(loader, './free_3d_textures_pack_08_by_nobiax-d3awoah/pattern_45/diffus.png'),
+    load(loader, './free_3d_textures_pack_08_by_nobiax-d3awoah/pattern_42/normal.png'),
+    load(loader, './free_3d_textures_pack_08_by_nobiax-d3awoah/pattern_43/normal.png'),
+    load(loader, './free_3d_textures_pack_08_by_nobiax-d3awoah/pattern_44/normal.png'),
+    load(loader, './free_3d_textures_pack_08_by_nobiax-d3awoah/pattern_45/normal.png'),
+    load(loader, './free_3d_textures_pack_08_by_nobiax-d3awoah/pattern_42/specular.png'),
+    load(loader, './free_3d_textures_pack_08_by_nobiax-d3awoah/pattern_43/specular.png'),
+    load(loader, './free_3d_textures_pack_08_by_nobiax-d3awoah/pattern_44/specular.png'),
+    load(loader, './free_3d_textures_pack_08_by_nobiax-d3awoah/pattern_45/specular.png'),
+    readFile(fs, './vertexShader.glsl', 'utf8'),
+    readFile(fs, './fragmentShader.glsl', 'utf8')
+  ];
 
   Promise.all(promises)
   .then(values => {
-    let splatMapImage  = values[0];
-    let diffuseLayer0 = values[1];
-    let diffuseLayer1 = values[2];
-    let diffuseLayer2 = values[3];
-    let diffuseLayer3 = values[4];
-    let normalLayer0 = values[5];
-    let normalLayer1 = values[6];
-    let normalLayer2 = values[7];
-    let normalLayer3 = values[8];
-    let specularImage0 = values[9];
-    let specularImage1 = values[10];
-    let specularImage2 = values[11];
-    let specularImage3 = values[12];
-    let lightMap = values[13];
-    let vertexShader = values[14];
-    let fragmentShader = values[15];
+    let [
+      splatMapImage,
+      diffuseLayer0,
+      diffuseLayer1,
+      diffuseLayer2,
+      diffuseLayer3,
+      normalLayer0,
+      normalLayer1,
+      normalLayer2,
+      normalLayer3,
+      specularLayer0,
+      specularLayer1,
+      specularLayer2,
+      specularLayer3,
+      vertexShader,
+      fragmentShader
+    ] = values;
 
-    let specularCanvas0 = document.createElement('canvas');
-    let specularCanvas1 = document.createElement('canvas');
-    let specularCanvas2 = document.createElement('canvas');
-    let specularCanvas3 = document.createElement('canvas');
-    let specularComboCanvas0 = document.createElement('canvas');
+    let diffuseLayers = [
+      diffuseLayer0,
+      diffuseLayer1,
+      diffuseLayer2,
+      diffuseLayer3
+    ];
+
+    let normalLayers = [
+      normalLayer0,
+      normalLayer1,
+      normalLayer2,
+      normalLayer3
+    ];
+
+    let specularLayers = [
+      specularLayer0,
+      specularLayer1,
+      specularLayer2,
+      specularLayer3
+    ];
 
     document.body.appendChild(splatMapCanvas);
 
-    document.body.appendChild(specularCanvas0);
-    document.body.appendChild(specularCanvas1);
-    document.body.appendChild(specularCanvas2);
-    document.body.appendChild(specularCanvas3);
-    document.body.appendChild(specularComboCanvas0);
-
-    splatMapCanvas.width = splatMapImage.width;
-    splatMapCanvas.height = splatMapImage.height;
-
-    specularCanvas0.width = specularImage0.width;
-    specularCanvas0.height = specularImage0.height;
-    specularCanvas1.width = specularImage1.width;
-    specularCanvas1.height = specularImage1.height;
-    specularCanvas2.width = specularImage2.width;
-    specularCanvas2.height = specularImage2.height;
-    specularCanvas3.width = specularImage3.width;
-    specularCanvas3.height = specularImage3.height;
-    specularComboCanvas0.width = specularImage0.width;
-    specularComboCanvas0.height = specularImage0.height;
-
-    let specularContext0 = specularCanvas0.getContext('2d');
-    let specularContext1 = specularCanvas1.getContext('2d');
-    let specularContext2 = specularCanvas2.getContext('2d');
-    let specularContext3 = specularCanvas3.getContext('2d');
-    let specularComboContext0 = specularComboCanvas0.getContext('2d');
+    Object.assign(splatMapCanvas, DEFAULT_TEXTURE_WIDTH_AND_HEIGHT);
 
     /* do not draw default splatMap for now */
     // splatMapContext.drawImage(splatMapImage, 0, 0);
     splatMapContext.clearRect(0, 0, splatMapCanvas.width, splatMapCanvas.height);
 
-    specularContext0.drawImage(specularImage0, 0, 0);
-    specularContext1.drawImage(specularImage1, 0, 0);
-    specularContext2.drawImage(specularImage2, 0, 0);
-    specularContext3.drawImage(specularImage3, 0, 0);
-
-    let specularImageData0 = specularContext0.getImageData(0, 0, specularCanvas0.width, specularCanvas0.height);
-    let specularImageData1 = specularContext1.getImageData(0, 0, specularCanvas1.width, specularCanvas1.height);
-    let specularImageData2 = specularContext2.getImageData(0, 0, specularCanvas2.width, specularCanvas2.height);
-    let specularImageData3 = specularContext3.getImageData(0, 0, specularCanvas3.width, specularCanvas3.height);
-    let specularComboImageData0 = specularComboContext0.createImageData(specularComboCanvas0.width, specularComboCanvas0.height);
-
-    for (var i = 0; i < specularImageData0.data.length; i += 4) {
-      specularComboImageData0.data[i + 0] = specularImageData0.data[i + 0];
-      specularComboImageData0.data[i + 1] = specularImageData1.data[i + 0];
-      specularComboImageData0.data[i + 2] = specularImageData2.data[i + 0];
-      specularComboImageData0.data[i + 3] = specularImageData3.data[i + 0];
-    }
-
-    specularComboContext0.putImageData(specularComboImageData0, 0, 0);
-
     splatMapTexture = new THREE.Texture(splatMapCanvas);
-
-    let specularCombo0 = new THREE.Texture(specularComboCanvas0);
 
     splatMapTexture.needsUpdate = true;
 
-    specularCombo0.needsUpdate = true;
-
-    diffuseLayer0.wrapS = diffuseLayer0.wrapT = THREE.RepeatWrapping;
-    diffuseLayer1.wrapS = diffuseLayer1.wrapT = THREE.RepeatWrapping;
-    diffuseLayer2.wrapS = diffuseLayer2.wrapT = THREE.RepeatWrapping;
-    diffuseLayer3.wrapS = diffuseLayer3.wrapT = THREE.RepeatWrapping;
-    normalLayer0.wrapS = normalLayer0.wrapT = THREE.RepeatWrapping;
-    normalLayer1.wrapS = normalLayer1.wrapT = THREE.RepeatWrapping;
-    normalLayer2.wrapS = normalLayer2.wrapT = THREE.RepeatWrapping;
-    normalLayer3.wrapS = normalLayer3.wrapT = THREE.RepeatWrapping;
-    specularCombo0.wrapS = specularCombo0.wrapT = THREE.RepeatWrapping;
+    diffuseLayers.forEach(diffuseLayer => Object.assign(diffuseLayer, DEFAULT_TEXTURE_WRAPPING));
+    normalLayers.forEach(normalLayer => Object.assign(normalLayer, DEFAULT_TEXTURE_WRAPPING));
+    specularLayers.forEach(specularLayer => Object.assign(specularLayer, DEFAULT_TEXTURE_WRAPPING));
 
     geometry = new UnindexedIsometricPlaneBufferGeometry(512, 512, 256, 256);
     material = new THREE.RawShaderMaterial({
@@ -335,21 +246,14 @@ const init = () => {
         comboMap: { type: "t", value: comboRenderTarget.texture },
         displacementScale: { type: "f", value: 196.0 },
         splatMap: { type: "t", value: splatMapTexture },
-        diffuseLayer0: { type: "t", value: diffuseLayer0 },
-        diffuseLayer1: { type: "t", value: diffuseLayer1 },
-        diffuseLayer2: { type: "t", value: diffuseLayer2 },
-        diffuseLayer3: { type: "t", value: diffuseLayer3 },
-        normalLayer0: {type: "t", value: normalLayer0 },
-        normalLayer1: {type: "t", value: normalLayer1 },
-        normalLayer2: {type: "t", value: normalLayer2 },
-        normalLayer3: {type: "t", value: normalLayer3 },
-        specularCombo0: {type: "t", value: specularCombo0 },
-        lightMap: {type: "t", value: lightMap},
+        diffuseLayers: { type: "tv", value: diffuseLayers },
+        normalLayers: { type: "tv", value: normalLayers },
+        specularLayers: { type: "tv", value: specularLayers },
         texScale: { type: "f", value: 32.0 },
         mousePosition: { type: "vec3", value: mousePosition },
         sunPosition: { type: "vec3", value: sky.sunPosition },
         radius: { type: "f", value: 100.0 },
-        mode: { type: "i", value: fsm.allStates().slice(1).indexOf(fsm.state) }
+        mode: { type: "i", value: states.indexOf(currState) }
       },
       vertexShader: vertexShader.toString(),
       fragmentShader: fragmentShader.toString(),
@@ -400,9 +304,7 @@ const init = () => {
 
   document.body.appendChild(renderer.domElement);
 
-  document.exitPointerLock();
-  stateIndicator.text = COMMAND_MODE;
-  stateIndicator.color = PURPLE;
+  changeState(State.COMMAND_MODE);
 
   window.addEventListener('resize', onWindowResize, false);
 
@@ -434,7 +336,7 @@ const animate = () => {
     if (moveUp) controls.getObject().translateY(velocity);
     if (moveDown) controls.getObject().translateY(-velocity);
   /*} else */if (isLeftMouseButtonDown || isRightMouseButtonDown) {
-    if (fsm.state === 'editMode') {
+    if (currState === State.EDIT_MODE) {
       if (isRightMouseButtonDown) {
         heightmapContext.globalCompositeOperation = 'difference';
         heightmapContext.fillStyle = 'white';
@@ -459,7 +361,7 @@ const animate = () => {
         heightmapContext.fillRect(0, 0, heightmapCanvas.width, heightmapCanvas.height);
       }
       heightmapTexture.needsUpdate = true;
-    } else if (fsm.state === 'textureMode') {
+    } else if (currState === State.TEXTURE_MODE) {
       if (isRightMouseButtonDown) {
         splatMapContext.globalCompositeOperation = 'difference';
         splatMapContext.fillStyle = 'white';
@@ -511,6 +413,22 @@ const animate = () => {
   stats.end();
 };
 
+const changeState = (state) => {
+  prevState = currState;
+  currState = state;
+  if (material) {
+    material.uniforms.mode.value = states.indexOf(currState);
+  }
+  if (State.CAMERA_MODE == state) {
+    document.body.requestPointerLock();
+    document.documentElement.classList.add('disable-cursor');
+  } else {
+    document.exitPointerLock();
+    document.documentElement.classList.remove('disable-cursor');
+  }
+  Object.assign(stateIndicator, currState);
+};
+
 const onWindowResize = () => {
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
@@ -526,11 +444,7 @@ const onMouseDown = (event) => {
       break;
     case 1: // middle
       isMiddleMouseButtonDown = true;
-      try {
-        fsm.switchToCameraMode();
-      } catch(e) {
-        // do nothing
-      }
+      changeState(State.CAMERA_MODE);
       break;
     case 2: // right
       isRightMouseButtonDown = true;
@@ -545,18 +459,7 @@ const onMouseUp = (event) => {
       break;
     case 1: // middle
       isMiddleMouseButtonDown = false;
-      try {  
-        let prevState = fsm.history[fsm.history.length - 2];
-        if ('commandMode' === prevState) {
-          fsm.switchToCommandMode();
-        } else if ('editMode' === prevState) {
-          fsm.switchToEditMode();
-        } else if ('textureMode' === prevState) {
-          fsm.switchToTextureMode();
-        }
-      } catch(e) {
-        // do nothing
-      }
+      changeState(prevState);
       break;
     case 2: // right
       isRightMouseButtonDown = false;
@@ -566,33 +469,22 @@ const onMouseUp = (event) => {
 
 const onMouseMove = (event) => {
   let vector = new THREE.Vector3();
-
   vector.set(
-    ( event.clientX / window.innerWidth ) * 2 - 1,
-    - ( event.clientY / window.innerHeight ) * 2 + 1,
-    0.5 );
-
-  vector.unproject( camera );
-
+    (event.clientX / window.innerWidth) * 2 - 1,
+    -(event.clientY / window.innerHeight) * 2 + 1,
+    0.5
+  );
+  vector.unproject(camera);
   vector.y -= 10;
-
   let pos = new THREE.Vector3(controls.getObject().position.x, controls.getObject().position.y - 10, controls.getObject().position.z);
-
   let customDir = vector.sub(pos).normalize();
-
   let ray = new THREE.Ray(pos, customDir);
-
   let distance = ray.distanceToPlane(new THREE.Plane(new THREE.Vector3(0, 1, 0)));
-
   mousePosition.copy(pos.clone().add(customDir.multiplyScalar(distance)));
 };
 
 const onPointerLockChange = (event) => {
-  if ( document.pointerLockElement === document.body ) {
-    controls.enabled = true;
-  } else {
-    controls.enabled = false;
-  }
+  controls.enabled = document.pointerLockElement === document.body;
 };
 
 const onPointerLockError = (event) => {
@@ -614,11 +506,7 @@ const onKeyDown = (event) => {
       activeLayer = 3;
       break;
     case 27: // esc
-      try {
-        fsm.switchToCommandMode();
-      } catch(e) {
-        // do nothing
-      }
+      changeState(State.COMMAND_MODE);
       break;
     case 32: // space
       moveUp = true;
@@ -627,31 +515,19 @@ const onKeyDown = (event) => {
       moveLeft = true;
       break;
     case 67: // c
-      try {
-        fsm.switchToCameraMode();
-      } catch(e) {
-        // do nothing
-      }
+      changeState(State.CAMERA_MODE);
       break;
     case 68: // d
       moveRight = true;
       break;
     case 69: // e
-      try {
-        fsm.switchToEditMode();
-      } catch(e) {
-        // do nothing
-      }
+      changeState(State.EDIT_MODE);
       break;
     case 83: // s
       moveBackward = true;
       break;
     case 84: // t
-      try {
-        fsm.switchToTextureMode();
-      } catch(e) {
-        // do nothing
-      }
+      changeState(State.TEXTURE_MODE);
       break;
     case 87: // w
       moveForward = true;
@@ -684,3 +560,5 @@ const onKeyUp = (event) => {
 
 init();
 animate();
+
+// TODO: optimize writing to combo texture only on change
