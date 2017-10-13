@@ -105,6 +105,7 @@ const init = () => {
 
   sky = new Sky();
   sky.init(scene, controls.getObject());
+  sky.inclination = 0.35;
   sky.azimuth = 0.27;
 
   options = new Options();
@@ -169,16 +170,16 @@ const init = () => {
     image('./rgb.png'),
     load(loader, './free_3d_textures_pack_08_by_nobiax-d3awoah/pattern_42/diffus.png'),
     load(loader, './free_3d_textures_pack_08_by_nobiax-d3awoah/pattern_43/diffus.png'),
-    load(loader, './free_3d_textures_pack_08_by_nobiax-d3awoah/pattern_44/diffus.png'),
     load(loader, './free_3d_textures_pack_08_by_nobiax-d3awoah/pattern_45/diffus.png'),
+    load(loader, './free_3d_textures_pack_08_by_nobiax-d3awoah/pattern_46/diffus.png'),
     load(loader, './free_3d_textures_pack_08_by_nobiax-d3awoah/pattern_42/normal.png'),
     load(loader, './free_3d_textures_pack_08_by_nobiax-d3awoah/pattern_43/normal.png'),
-    load(loader, './free_3d_textures_pack_08_by_nobiax-d3awoah/pattern_44/normal.png'),
     load(loader, './free_3d_textures_pack_08_by_nobiax-d3awoah/pattern_45/normal.png'),
+    load(loader, './free_3d_textures_pack_08_by_nobiax-d3awoah/pattern_46/normal.png'),
     load(loader, './free_3d_textures_pack_08_by_nobiax-d3awoah/pattern_42/specular.png'),
     load(loader, './free_3d_textures_pack_08_by_nobiax-d3awoah/pattern_43/specular.png'),
-    load(loader, './free_3d_textures_pack_08_by_nobiax-d3awoah/pattern_44/specular.png'),
     load(loader, './free_3d_textures_pack_08_by_nobiax-d3awoah/pattern_45/specular.png'),
+    load(loader, './free_3d_textures_pack_08_by_nobiax-d3awoah/pattern_46/specular.png'),
     readFile(fs, './vertexShader.glsl', 'utf8'),
     readFile(fs, './fragmentShader.glsl', 'utf8')
   ];

@@ -15,7 +15,6 @@ uniform vec3 sunPosition;
 varying vec3 vPosition;
 varying vec2 vTexCoord;
 varying vec2 vBaryCoord;
-varying vec3 vViewSpacePosition;
 varying vec3 vL;
 varying vec3 vV;
 
@@ -28,9 +27,8 @@ void main() {
   vPosition = newPosition;
   vTexCoord = uv;
   vBaryCoord = bc;
-  vViewSpacePosition = viewSpacePosition.xyz;
-  vL = normalize(vec3(modelViewMatrix * vec4(normalize(sunPosition), 0.0)));
-  vV = normalize(vec3(modelViewMatrix * vec4(normalize(cameraPosition - vPosition), 0.0)));
+  vL = vec3(modelViewMatrix * vec4(sunPosition, 1.0));
+  vV = -viewSpacePosition.xyz;
 
   gl_Position = projectionMatrix * viewSpacePosition;
 }

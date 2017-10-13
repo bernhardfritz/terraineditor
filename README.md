@@ -1,4 +1,13 @@
-### Instructions
+## terraineditor
+This terrain editor offers you the following two ways to design your own terrain:
+* Brush-based height manipulation
+* Brush-based multi-layer texturing
+
+The terrain format produced by this terrain editor will be image-based. Once the documentation is ready you shouldn't have much trouble integrating it into your own projects.
+
+Feel free to check out the current state of development by following the instructions below. I'd be happy about any feedback :)
+
+#### Instructions
 ```
 git clone https://github.com/bernhardfritz/terraineditor.git
 cd terraineditor
@@ -6,7 +15,7 @@ npm i
 npm start
 ```
 
-### Controls
+#### Controls
 * `W`, `A`, `S`, `D`, `SPACE`, `SHIFT` for movement
 * hold `middle mousebutton` to temporarily switch to *CAMERA MODE*
 * while in *CAMERA MODE* move your mouse to rotate the camera
@@ -21,13 +30,15 @@ npm start
 * the base texture layer (layer 0) is applied to the whole terrain per default and cannot be erased
 * all texture layers are added on top of each other, layer 0 being on the very bottom and layer 3 on the very top
 
-### WIP Screenshots
-Some textures used in the screenshots below are not included in this repository to prevent any copyright infringement of their authors' intellectual property.
+#### Screenshots
+![screenshot](https://i.imgur.com/4xvgs03.png)
+![screenshot](https://i.imgur.com/vLyrvMl.jpg)
+![screenshot](https://i.imgur.com/cgILxgf.jpg)
 
-![screenshot](http://i.imgur.com/7c6ixW8.jpg)
-![screenshot](http://i.imgur.com/OmlSTmz.jpg)
-![gif](https://media.giphy.com/media/3o6vXU6rCETKsA0d8s/giphy-downsized-large.gif)
-![screenshot](http://i.imgur.com/Ipg3Cg5.png)
-![screenshot](http://i.imgur.com/mWPnoum.jpg)
-![screenshot](http://i.imgur.com/kNtbm56.png)
-![gif](https://thumbs.gfycat.com/NaughtyAbleKillifish-size_restricted.gif)
+#### TODO
+* Saving/Loading of terrain
+* Detailed documentation of the terrain format
+* Implementation of a JavaScript module that allows you to directly import terrain files into your three.js scene
+* Allow textures to be drag and dropped into texture layer slots during runtime
+* Custom brushes
+* Keyframe-based modification of sky parameters over time
