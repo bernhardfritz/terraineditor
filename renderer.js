@@ -1,15 +1,16 @@
-let THREE = require('three');
-let { PointerLockControls } = require('./PointerLockControls.js')(THREE);
-let { EffectComposer, RenderPass, BlurPass, KernelSize, SavePass, ToneMappingPass, BloomPass, BokehPass, SMAAPass } = require('postprocessing');
-let { UnindexedIsometricPlaneBufferGeometry } = require('./UnindexedIsometricPlaneGeometry.js')(THREE);
-let { remote } = require('electron');
-let fs = remote.require('fs');
-let { readFile, load, image } = require('./utils.js');
-let { Sky } = require('./sky.js')(THREE);
-let dat = require('./dat.gui.min.js');
-let Stats = require('./stats.min.js');
-let { MyPass } = require('./MyPass.js')(THREE);
-let { StateIndicator } = require('./StateIndicator.js');
+const THREE = require('three');
+const { PointerLockControls } = require('./PointerLockControls.js')(THREE);
+const { EffectComposer, RenderPass, BlurPass, KernelSize, SavePass, ToneMappingPass, BloomPass, BokehPass, SMAAPass } = require('postprocessing');
+const { UnindexedIsometricPlaneBufferGeometry } = require('./UnindexedIsometricPlaneGeometry.js')(THREE);
+const { remote } = require('electron');
+const fs = remote.require('fs');
+const { readFile, load, image } = require('./utils.js');
+const { Sky } = require('./sky.js')(THREE);
+const dat = require('./vendor/dat.gui.min.js');
+const Stats = require('./vendor/stats.min.js');
+const { MyPass } = require('./MyPass.js')(THREE);
+const { StateIndicator } = require('./StateIndicator.js');
+const { Keyboard } = require('./keyboard.js');
 
 let comboRenderTarget, comboCamera, comboScene, comboMesh;
 
@@ -79,6 +80,8 @@ let states = [State.CAMERA_MODE, State.COMMAND_MODE, State.EDIT_MODE, State.TEXT
 let prevState = State.COMMAND_MODE;
 let currState = State.COMMAND_MODE;
 
+let keyboard;
+
 const init = () => {
   loader = new THREE.TextureLoader();
 
@@ -108,6 +111,28 @@ const init = () => {
   sky.inclination = 0.35;
   sky.azimuth = 0.27;
 
+  keyboard = new Keyboard();
+  keyboard.init();
+  keyboard.onKeyDown(16, () => { moveDown = true }); // shift
+  keyboard.onKeyUp(16, () => { moveDown = false }); // shift
+  keyboard.onKeyDown(49, () => { activeLayer = 1 }); // 1
+  keyboard.onKeyDown(50, () => { activeLayer = 2 }); // 2
+  keyboard.onKeyDown(51, () => { activeLayer = 3 }); // 3
+  keyboard.onKeyDown(27, () => { changeState(State.COMMAND_MODE) }); // esc
+  keyboard.onKeyDown(32, () => { moveUp = true }); // space
+  keyboard.onKeyUp(32, () => { moveUp = false }); // space
+  keyboard.onKeyDown(65, () => { moveLeft = true }); // a
+  keyboard.onKeyUp(65, () => { moveLeft = false }); // a
+  keyboard.onKeyDown(67, () => { changeState(State.CAMERA_MODE) }); // c
+  keyboard.onKeyDown(68, () => { moveRight = true }); // d
+  keyboard.onKeyUp(68, () => { moveRight = false }); // d
+  keyboard.onKeyDown(69, () => { changeState(State.EDIT_MODE) }); // e
+  keyboard.onKeyDown(83, () => { moveBackward = true }); // s
+  keyboard.onKeyUp(83, () => { moveBackward = false }); // s
+  keyboard.onKeyDown(84, () => { changeState(State.TEXTURE_MODE) }); // t
+  keyboard.onKeyDown(87, () => { moveForward = true }); // w
+  keyboard.onKeyUp(87, () => { moveForward = false }); // w
+
   options = new Options();
 
   gui = new dat.GUI();
@@ -136,9 +161,9 @@ const init = () => {
   stateIndicator = new StateIndicator();
 
   let promises = [
-    image('./heightmap.png'),
-    readFile(fs, './comboVertexShader.glsl', 'utf8'),
-    readFile(fs, './comboFragmentShader.glsl', 'utf8')
+    image('./textures/heightmap.png'),
+    readFile(fs, './shaders/comboVertexShader.glsl', 'utf8'),
+    readFile(fs, './shaders/comboFragmentShader.glsl', 'utf8')
   ];
 
   Promise.all(promises)
@@ -167,21 +192,21 @@ const init = () => {
   });
 
   promises = [
-    image('./rgb.png'),
-    load(loader, './free_3d_textures_pack_08_by_nobiax-d3awoah/pattern_42/diffus.png'),
-    load(loader, './free_3d_textures_pack_08_by_nobiax-d3awoah/pattern_43/diffus.png'),
-    load(loader, './free_3d_textures_pack_08_by_nobiax-d3awoah/pattern_45/diffus.png'),
-    load(loader, './free_3d_textures_pack_08_by_nobiax-d3awoah/pattern_46/diffus.png'),
-    load(loader, './free_3d_textures_pack_08_by_nobiax-d3awoah/pattern_42/normal.png'),
-    load(loader, './free_3d_textures_pack_08_by_nobiax-d3awoah/pattern_43/normal.png'),
-    load(loader, './free_3d_textures_pack_08_by_nobiax-d3awoah/pattern_45/normal.png'),
-    load(loader, './free_3d_textures_pack_08_by_nobiax-d3awoah/pattern_46/normal.png'),
-    load(loader, './free_3d_textures_pack_08_by_nobiax-d3awoah/pattern_42/specular.png'),
-    load(loader, './free_3d_textures_pack_08_by_nobiax-d3awoah/pattern_43/specular.png'),
-    load(loader, './free_3d_textures_pack_08_by_nobiax-d3awoah/pattern_45/specular.png'),
-    load(loader, './free_3d_textures_pack_08_by_nobiax-d3awoah/pattern_46/specular.png'),
-    readFile(fs, './vertexShader.glsl', 'utf8'),
-    readFile(fs, './fragmentShader.glsl', 'utf8')
+    image('./textures/rgb.png'),
+    load(loader, './textures/free_3d_textures_pack_08_by_nobiax-d3awoah/pattern_42/diffus.png'),
+    load(loader, './textures/free_3d_textures_pack_08_by_nobiax-d3awoah/pattern_43/diffus.png'),
+    load(loader, './textures/free_3d_textures_pack_08_by_nobiax-d3awoah/pattern_45/diffus.png'),
+    load(loader, './textures/free_3d_textures_pack_08_by_nobiax-d3awoah/pattern_46/diffus.png'),
+    load(loader, './textures/free_3d_textures_pack_08_by_nobiax-d3awoah/pattern_42/normal.png'),
+    load(loader, './textures/free_3d_textures_pack_08_by_nobiax-d3awoah/pattern_43/normal.png'),
+    load(loader, './textures/free_3d_textures_pack_08_by_nobiax-d3awoah/pattern_45/normal.png'),
+    load(loader, './textures/free_3d_textures_pack_08_by_nobiax-d3awoah/pattern_46/normal.png'),
+    load(loader, './textures/free_3d_textures_pack_08_by_nobiax-d3awoah/pattern_42/specular.png'),
+    load(loader, './textures/free_3d_textures_pack_08_by_nobiax-d3awoah/pattern_43/specular.png'),
+    load(loader, './textures/free_3d_textures_pack_08_by_nobiax-d3awoah/pattern_45/specular.png'),
+    load(loader, './textures/free_3d_textures_pack_08_by_nobiax-d3awoah/pattern_46/specular.png'),
+    readFile(fs, './shaders/vertexShader.glsl', 'utf8'),
+    readFile(fs, './shaders/fragmentShader.glsl', 'utf8')
   ];
 
   Promise.all(promises)
@@ -315,9 +340,6 @@ const init = () => {
 
   document.addEventListener('pointerlockchange', onPointerLockChange, false);
   document.addEventListener('pointerlockerror', onPointerLockError, false);
-
-  document.addEventListener('keydown', onKeyDown, false);
-	document.addEventListener('keyup', onKeyUp, false);
 };
 
 const animate = () => {
@@ -490,73 +512,6 @@ const onPointerLockChange = (event) => {
 
 const onPointerLockError = (event) => {
 
-};
-
-const onKeyDown = (event) => {
-  switch(event.keyCode) {
-    case 16: // shift
-      moveDown = true;
-      break;
-    case 49: // 1
-      activeLayer = 1;
-      break;
-    case 50: // 2
-      activeLayer = 2;
-      break;
-    case 51: // 3
-      activeLayer = 3;
-      break;
-    case 27: // esc
-      changeState(State.COMMAND_MODE);
-      break;
-    case 32: // space
-      moveUp = true;
-      break;
-    case 65: // a
-      moveLeft = true;
-      break;
-    case 67: // c
-      changeState(State.CAMERA_MODE);
-      break;
-    case 68: // d
-      moveRight = true;
-      break;
-    case 69: // e
-      changeState(State.EDIT_MODE);
-      break;
-    case 83: // s
-      moveBackward = true;
-      break;
-    case 84: // t
-      changeState(State.TEXTURE_MODE);
-      break;
-    case 87: // w
-      moveForward = true;
-      break;
-  }
-};
-
-const onKeyUp = (event) => {
-  switch(event.keyCode) {
-    case 16: // shift
-      moveDown = false;
-      break;
-    case 32: // space
-      moveUp = false;
-      break;
-    case 65: // a
-      moveLeft = false;
-      break;
-    case 68: // d
-      moveRight = false;
-      break;
-    case 83: // s
-      moveBackward = false;
-      break;
-    case 87: // w
-      moveForward = false;
-      break;
-  }
 };
 
 init();

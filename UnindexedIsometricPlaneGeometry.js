@@ -1,5 +1,5 @@
 module.exports = function(THREE) {
-  let {
+  const {
     Geometry,
     BufferGeometry,
     Float32BufferAttribute

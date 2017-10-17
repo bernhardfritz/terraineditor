@@ -1,4 +1,4 @@
-let { Pass } = require("postprocessing");
+const { Pass } = require("postprocessing");
 
 module.exports = (THREE) => {
   let { MyMaterial } = require("./MyMaterial.js")(THREE);

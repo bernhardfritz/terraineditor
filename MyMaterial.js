@@ -1,4 +1,4 @@
-let fragment = [
+const fragment = [
   'uniform sampler2D tDiffuse;',
   'uniform float opacity;',
 
@@ -79,7 +79,7 @@ let fragment = [
   '}'
 ].join('\n');
 
-let vertex = [
+const vertex = [
   'varying vec2 vUv;',
 
   'void main() {',

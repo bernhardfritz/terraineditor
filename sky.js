@@ -1,5 +1,5 @@
-let fs = require('fs');
-let { readFile } = require('./utils.js');
+const fs = require('fs');
+const { readFile } = require('./utils.js');
 
 module.exports = function(THREE) {
   const distance = 9000.0;
@@ -22,8 +22,8 @@ module.exports = function(THREE) {
       this.updateSun();
 
       let promises = [];
-      promises.push(readFile(fs, './skyVertexShader.glsl', 'utf8'));
-      promises.push(readFile(fs, './skyFragmentShader.glsl', 'utf8'));
+      promises.push(readFile(fs, './shaders/skyVertexShader.glsl', 'utf8'));
+      promises.push(readFile(fs, './shaders/skyFragmentShader.glsl', 'utf8'));
 
       Promise.all(promises)
       .then(values => {
